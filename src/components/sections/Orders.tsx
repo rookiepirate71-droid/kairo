@@ -11,40 +11,41 @@ import { cn } from "@/lib/utils";
    (capital / name / blurb / price / features / cta) so every tier's rows
    stay on identical baselines — the brief's 1px alignment criterion. */
 
-/* Column capitals, drawn on a fixed 12-unit grid in token colours.
-   Ornament increases with tier: Tuscan (plain) < Ionic (scrolls) <
-   Corinthian (acanthus). Decorative only — the plan name is adjacent. */
+/* Column capitals, drawn on a fixed 12-unit grid. Fills come from
+   currentColor / --accent / stone so they invert with the card theme
+   (bone-on-dark cards, ink-on-sand hero card). Ornament increases with
+   tier: Tuscan (plain) < Ionic (scrolls) < Corinthian (acanthus). */
 function Capital({ tier }: { tier: "citizen" | "senator" | "emperor" }) {
   return (
     <svg
       viewBox="0 0 72 20"
-      className="mx-auto block h-5 w-[72px]"
+      className="mx-auto block h-5 w-[72px] text-(--on-surface)"
       shapeRendering="crispEdges"
       aria-hidden="true"
     >
       {/* abacus (top slab) */}
-      <rect x="4" y="0" width="64" height="4" fill="#d6c6a1" />
+      <rect x="4" y="0" width="64" height="4" fill="var(--color-stone)" />
       {/* echinus */}
-      <rect x="8" y="4" width="56" height="6" fill="#e7dfcd" />
-      {tier !== "citizen" && <rect x="8" y="4" width="56" height="2" fill="#c8a45c" />}
+      <rect x="8" y="4" width="56" height="6" fill="currentColor" opacity="0.55" />
+      {tier !== "citizen" && <rect x="8" y="4" width="56" height="2" fill="var(--accent)" />}
       {/* necking */}
-      <rect x="16" y="10" width="40" height="10" fill="#ede6d6" />
-      <rect x="16" y="10" width="40" height="2" fill="#d6c6a1" />
+      <rect x="16" y="10" width="40" height="10" fill="currentColor" />
+      <rect x="16" y="10" width="40" height="2" fill="var(--color-stone)" />
       {tier === "senator" && (
         <>
-          <rect x="6" y="10" width="10" height="10" fill="#e7dfcd" />
-          <rect x="56" y="10" width="10" height="10" fill="#e7dfcd" />
-          <rect x="10" y="12" width="6" height="2" fill="#c8a45c" />
-          <rect x="56" y="12" width="6" height="2" fill="#c8a45c" />
+          <rect x="6" y="10" width="10" height="10" fill="currentColor" opacity="0.7" />
+          <rect x="56" y="10" width="10" height="10" fill="currentColor" opacity="0.7" />
+          <rect x="10" y="12" width="6" height="2" fill="var(--accent)" />
+          <rect x="56" y="12" width="6" height="2" fill="var(--accent)" />
         </>
       )}
       {tier === "emperor" && (
         <>
           {/* acanthus leaves */}
           {[-2, 0, 2, 4, 6, 8].map((o) => (
-            <rect key={`l${o}`} x={18 + o * 6} y="14" width="4" height="6" fill="#c8a45c" />
+            <rect key={`l${o}`} x={18 + o * 6} y="14" width="4" height="6" fill="var(--accent)" />
           ))}
-          <rect x="12" y="10" width="48" height="2" fill="#8f3f22" />
+          <rect x="12" y="10" width="48" height="2" fill="var(--color-terra-deep)" />
         </>
       )}
     </svg>
@@ -67,14 +68,15 @@ function LaurelBadge() {
   );
 }
 
-/* Coin glyph beside prices — 1:1 pixel disc, aria-hidden. */
+/* Coin glyph beside prices — 1:1 pixel disc that follows the text colour,
+   so it stays visible on both dark and sand cards. */
 function Coin() {
   return (
-    <svg viewBox="0 0 12 12" className="inline-block h-4 w-4 align-baseline" shapeRendering="crispEdges" aria-hidden="true">
-      <rect x="2" y="0" width="8" height="12" fill="#c8a45c" />
-      <rect x="0" y="2" width="12" height="8" fill="#c8a45c" />
-      <rect x="2" y="2" width="8" height="8" fill="#e7dfcd" />
-      <rect x="4" y="4" width="4" height="4" fill="#c8a45c" />
+    <svg viewBox="0 0 12 12" className="mr-2 inline-block h-4 w-4 align-baseline text-(--accent)" shapeRendering="crispEdges" aria-hidden="true">
+      <rect x="2" y="0" width="8" height="12" fill="currentColor" />
+      <rect x="0" y="2" width="12" height="8" fill="currentColor" />
+      <rect x="2" y="2" width="8" height="8" fill="var(--color-sand)" />
+      <rect x="4" y="4" width="4" height="4" fill="currentColor" />
     </svg>
   );
 }
@@ -87,7 +89,7 @@ function SpqrRule({ inverted = false }: { inverted?: boolean }) {
       <span
         className={cn(
           "font-mono text-[10px] tracking-[0.3em]",
-          inverted ? "text-terra-deep" : "text-stone"
+          inverted ? "text-terra-deep" : "text-(--on-surface-muted)"
         )}
       >
         SPQR
@@ -241,20 +243,20 @@ export default function Orders() {
                 <div className="sr-only">{CAPITAL_ALT[plan.id]}</div>
                 <div className="pt-1">
                   <Capital tier={plan.id as "citizen" | "senator" | "emperor"} />
-                  <p className="mt-2 text-center font-mono text-[11px] tracking-[0.3em] text-stone">
+                  <p className="mt-2 text-center font-mono text-[11px] tracking-[0.3em] text-(--on-surface-muted)">
                     {LATIN_SUBTITLE[plan.id]}
                   </p>
                   <div aria-hidden="true" className="meander-strip mt-3 opacity-30" />
                 </div>
 
-                <h3 className="mt-4 text-center font-display text-3xl text-bone">
+                <h3 className="mt-4 text-center font-display text-3xl text-(--on-surface)">
                   {plan.name}
                 </h3>
-                <p className="mt-2 min-h-[2.5em] text-center text-sm text-travertine">
+                <p className="mt-2 min-h-[2.5em] text-center text-sm text-(--on-surface-muted)">
                   {plan.blurb}
                 </p>
                 <p
-                  className="mt-6 text-center font-display text-5xl text-bone [font-variant-numeric:lining-nums_tabular-nums]"
+                  className="mt-6 text-center font-display text-5xl text-(--on-surface) [font-variant-numeric:lining-nums_tabular-nums]"
                 >
                   <Coin />
                   {price !== null ? (
@@ -265,9 +267,9 @@ export default function Orders() {
                         className="tabular-nums"
                         duration={0.3}
                       />
-                      <span className="text-base text-bone font-sans"> / mo</span>
+                      <span className="text-base font-sans text-(--on-surface)"> / mo</span>
                       {annual && (
-                        <span className="block text-xs text-travertine font-sans mt-1">
+                        <span className="mt-1 block font-sans text-xs text-(--on-surface-muted)">
                           billed annually
                         </span>
                       )}
@@ -279,8 +281,8 @@ export default function Orders() {
 
                 <ul className="mt-6 space-y-3 flex-1">
                   {(ROMAN_FEATURES[plan.id] ?? []).map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-travertine">
-                      <span className="text-oxidized mt-0.5" aria-hidden="true">
+                    <li key={f} className="flex items-start gap-2 text-sm text-(--on-surface-muted)">
+                      <span className="mt-0.5 text-(--accent)" aria-hidden="true">
                         ✦
                       </span>
                       {f}
