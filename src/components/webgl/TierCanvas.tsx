@@ -139,14 +139,20 @@ void main() {
   textUv = clamp(textUv, 0.0, 1.0);
 
   float shadow = pres * smoothstep(0.0, 0.05, front);  // dark shadow ahead of front
-  float highlight = pres * (1.0 - smoothstep(-0.03, 0.0, front)); // bright just behind
+  // bright rim confined to a narrow band just behind the front (NOT the whole
+  // interior — a full-area tint reads as a "fake" colour that later darkens)
+  float highlight = pres * smoothstep(-0.14, -0.03, front)
+                  * (1.0 - smoothstep(-0.03, 0.005, front));
   float leaf = pres * (1.0 - smoothstep(0.0, ${REVEAL.leafWidth}, abs(front)));
   // pixel-staircase mist ahead of the front (demo parity): Bayer 4x4 sampled
   // on a 3-device-pixel grid, so the dithering breaks the wave edge into
   // chunky visible pixels instead of per-pixel noise
   ivec2 px3 = ivec2(floor(frag / (3.0 * uDpr)));
   float bay = uDither[(px3.y % 4) * 4 + (px3.x % 4)];
-  float mist = pres * step(bay, pow(1.0 - smoothstep(0.0, 0.11, front), 2.0));
+  // dither field masked to a band hugging the front — deep behind the front the
+  // stone must be the final marble, not a gold-tinted intermediate
+  float mistBand = smoothstep(-0.11, -0.03, front);
+  float mist = pres * mistBand * step(bay, pow(1.0 - smoothstep(0.0, 0.11, front), 2.0));
 
   // ---- text layers ----
   vec4 textBase = texture(uTextBase, textUv);
