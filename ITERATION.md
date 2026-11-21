@@ -150,3 +150,32 @@ to accordions was already present and is kept, fed from the same rows.
   exact roving-tabindex keyboard spec is implemented (selected option only
   tabbable), but arrow keys are not yet announced by a live region — the
   sr-only region does announce the resulting state.
+
+---
+
+# Iteration — hotfix: Senator card text invisible
+
+Date: 2026-11-21 · Commit 597d5be, follow-up to pass/orders-refine.
+
+User screenshot showed the inverted Senator card rendering bone/travertine
+text on sand — invisible. Root cause: pass 2 styled card text with raw
+palette utilities (`text-bone`, `text-travertine`, `text-stone`), which do
+not flip inside `data-theme="light"`; only the semantic tokens do.
+
+Fix:
+- New `--on-surface-muted` semantic token (travertine on dark, terra-deep on
+  light) alongside `--on-surface`.
+- All card text (name, blurb, price, suffix, features, subtitles) moved to
+  `text-(--on-surface)` / `text-(--on-surface-muted)`; feature stars and
+  coin glyph to `--accent`.
+- Capital and Coin SVG fills now use `currentColor` / `--accent` /
+  `--color-stone`, so the ornaments invert with the card instead of
+  hardcoding bone-on-sand.
+- Remaining raw palette classes are only on always-dark backgrounds
+  (section header, toggle, table) — intentional.
+
+Verified: tsc clean, 17/17 tests, browser 390px `success: true`
+`interactive: true` zero errors — screenshots show the Citizen card fully
+legible and the Senator card top (capital, meander, subtitle) drawing in ink
+on sand; Annual toggle click → "billed annually" asserted. Desktop 1440px
+run also clean.
