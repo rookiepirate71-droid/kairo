@@ -8,6 +8,8 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 type Three = typeof ThreeNs;
 
 const GLYPHS = " .:-=+*#%@"; // dark to bright
+const BRAND_WORD = "ORACV·VM"; // spelled across the hero in glyph cells
+const BRAND_LETTERS = "ORACV·M"; // unique glyphs of the word, for the letter atlas
 const GLYPH_W = 16;
 const GLYPH_H = 32; // 1:2 cells, like a terminal
 
@@ -36,8 +38,11 @@ const FRAG = /* glsl */ `
   uniform vec3  uMarble;
   uniform vec3  uGold;
   uniform sampler2D uAtlas;
+  uniform sampler2D uLetters;
+  uniform sampler2D uWord;
 
   const float RAMP = ${GLYPHS.length}.0;
+  const float LETTERS = ${BRAND_LETTERS.length}.0;
 
   // sin-free hash (Hoskins): stable on mobile GPUs
   float hash(vec2 p) {
@@ -101,17 +106,26 @@ const FRAG = /* glsl */ `
     // 0 inside the lens (real marble), 1 outside (ascii)
     float ascii = uFade * smoothstep(uRadius, uRadius + uFeather, distance(frag, uMouse));
 
-    // ascii: one luminance sample per cell, mapped to a glyph
+    // ascii: one luminance sample per cell, mapped to a glyph. Cells inside
+    // the ORACV·VM word mask spell the brand in letters from the second
+    // atlas instead of density symbols.
     vec2 cell = floor(frag / uCell);
     float d = 0.0;
+    float onWord = 0.0;
     if (ascii > 0.001) {
-      d = vein((cell + 0.5) * uCell / uRes);
+      vec2 cellUV = (cell + 0.5) * uCell / uRes;
+      d = vein(cellUV);
+      onWord = step(0.55, texture2D(uWord, cellUV).r);
     }
     float idx = floor(d * (RAMP - 0.001));
     vec2 inCell = fract(frag / uCell);
-    // sampled outside the branch so texture derivatives stay uniform
-    float g = texture2D(uAtlas, vec2((idx + inCell.x) / RAMP, inCell.y)).r;
-    vec3 asciiCol = mix(uGround, uGold, g * (0.35 + 0.65 * d));
+    // sampled outside the branches so texture derivatives stay uniform.
+    // Brand letters re-roll slowly (every ~1.7s) per cell.
+    float li = floor(hash(cell + floor(uTime * 0.6) * vec2(7.13, 3.71)) * LETTERS - 0.001);
+    float gRamp = texture2D(uAtlas, vec2((idx + inCell.x) / RAMP, inCell.y)).r;
+    float gLetter = texture2D(uLetters, vec2((li + inCell.x) / LETTERS, inCell.y)).r;
+    float g = mix(gRamp, gLetter, onWord);
+    vec3 asciiCol = mix(uGround, uGold, g * mix(0.35 + 0.65 * d, 0.95, onWord));
 
     // true marble: only evaluated where the lens is visible. Same living-stone
     // maths as the Orders tier cards: domain-warped body, kintsugi ridged
@@ -182,6 +196,51 @@ function createGlyphAtlas(THREE: Three): ThreeNs.CanvasTexture {
   return tex;
 }
 
+function createLetterAtlas(THREE: Three): ThreeNs.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = GLYPH_W * BRAND_LETTERS.length;
+  canvas.height = GLYPH_H;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#fff";
+    ctx.font = `bold ${GLYPH_W / 0.6}px ui-monospace, "Courier New", monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    [...BRAND_LETTERS].forEach((ch, i) => {
+      ctx.fillText(ch, i * GLYPH_W + GLYPH_W / 2, GLYPH_H / 2);
+    });
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
+/* ORACV·VM rasterised white-on-black at drawing-buffer size: sampled per
+   glyph cell by the shader as a mask. Redrawn on resize so the word keeps
+   its aspect; contain-fit with side margins. */
+function drawWordMask(canvas: HTMLCanvasElement, w: number, h: number): void {
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx || w < 2 || h < 2) return;
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const maxW = w * 0.86;
+  let size = Math.floor(h * 0.42);
+  ctx.font = `bold ${size}px ui-monospace, "Courier New", monospace`;
+  const measured = ctx.measureText(BRAND_WORD).width;
+  if (measured > maxW) size = Math.max(8, Math.floor(size * (maxW / measured)));
+  ctx.font = `bold ${size}px ui-monospace, "Courier New", monospace`;
+  ctx.fillText(BRAND_WORD, w / 2, h / 2);
+}
+
 export default function MarbleScene(): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
@@ -215,6 +274,12 @@ export default function MarbleScene(): ReactElement {
       host.appendChild(canvas);
 
       const atlas = createGlyphAtlas(THREE);
+      const letters = createLetterAtlas(THREE);
+      const wordCanvas = document.createElement("canvas");
+      const wordTex = new THREE.CanvasTexture(wordCanvas);
+      wordTex.minFilter = THREE.LinearFilter;
+      wordTex.magFilter = THREE.LinearFilter;
+      wordTex.generateMipmaps = false;
       const uniforms = {
         uTime: { value: 0 },
         uFade: { value: 0 },
@@ -228,6 +293,8 @@ export default function MarbleScene(): ReactElement {
         uMarble: { value: readColor(THREE, "--color-bone", "#ede6d6") },
         uGold: { value: readColor(THREE, "--color-gold", "#c8a45c") },
         uAtlas: { value: atlas },
+        uLetters: { value: letters },
+        uWord: { value: wordTex },
       };
       const material = new THREE.ShaderMaterial({
         uniforms,
@@ -262,6 +329,8 @@ export default function MarbleScene(): ReactElement {
         uniforms.uCell.value.set(cellW, cellW * (GLYPH_H / GLYPH_W));
         uniforms.uRadius.value = clamp(w * SCENE.lensVw, SCENE.lensMinPx, SCENE.lensMaxPx) * dpr;
         uniforms.uFeather.value = SCENE.lensFeatherPx * dpr;
+        drawWordMask(wordCanvas, drawing.x, drawing.y);
+        wordTex.needsUpdate = true;
         if (reduced) paintStatic();
       };
 
@@ -370,6 +439,8 @@ export default function MarbleScene(): ReactElement {
         geometry.dispose();
         material.dispose();
         atlas.dispose();
+        letters.dispose();
+        wordTex.dispose();
         renderer.dispose();
         renderer.forceContextLoss(); // release the context slot immediately
         canvas.remove();
