@@ -211,3 +211,62 @@ capitals side by side — Tuscan/Ionic/Corinthian distinct, Senator card
 fully legible ink-on-sand, laurel badge inside the padding box, coin
 glyphs, meander strips, SPQR rules. 390px clean too (zero console errors,
 no overflow).
+
+---
+
+# Iteration — pass/orders-liquid: card liquid-marble reveal (WebGL2)
+
+Date: 2026-11-21 · Commit 9522239 · Branch pass/orders-liquid.
+Work order: "PASS: Orders card liquid-marble reveal (WebGL2)".
+(CLAUDE.md does not exist in this repo — the standard loop was followed
+from ITERATION.md history instead.)
+
+## Built
+
+- `src/lib/tiers.ts` — per-tier stone palette (stoneA/stoneB/vein/text
+  pairs), REVEAL tuning constants (rateIn 2.4/s, rateOut 3.2/s, ripple,
+  leaf width, sheen, dpr cap 1.5), BAYER4 matrix.
+- `src/hooks/useRevealOrigin.ts` — origin tracker: pointer entry point on
+  hover, near-edge (x=0.5, y=0.85) on keyboard focus, tap point on touch;
+  source is recorded so touch taps can ignore pointerleave.
+- `src/components/webgl/TierCanvas.tsx` — WebGL2 card canvas:
+  - GLSL ES 3.00; full-screen triangle from gl_VertexID (no attributes).
+  - Second-order domain-warped fbm + ridged vein noise = the liquid
+    marble; sinusoidal strata on Citizen only.
+  - Front radius warped by fbm; wobble is sin(π·progress) so the edge is
+    organic mid-flight and flat at rest. Exponential ease in/out.
+  - Edge fx: refraction ripple trailing the front, dark shadow ahead,
+    bright highlight behind, gold-leaf line, Bayer-4×4 dithered gold mist
+    band ahead of the front.
+  - Card text is rasterised at init into two canvas textures (bone base
+    layer + themed layer) using the computed font families — next/font
+    hashed names are picked up automatically. Layers crossfade with the
+    flood; text stays selectable in the DOM underneath (canvas is
+    aria-hidden; DOM text remains the accessible truth).
+  - GPU tier probe: 3 octaves if WEBGL_lose_context is absent, else 5.
+  - Renders only while animating/revealed; IntersectionObserver pauses
+    offscreen; context lost handler; forceContextLoss on unmount.
+- `Orders.tsx` — cards are now focusable (`tabIndex=0`,
+  `aria-label` with name + blurb); RevealCard wraps pointer, focus and
+  tap handlers; without WebGL2 or with reduced motion the canvas never
+  mounts and the DOM card (CSS theme swap) is the whole experience.
+
+## Verified
+
+- `pnpm exec tsc --noEmit` clean; `pnpm exec vitest run` → 17 passed;
+  `pnpm exec next build` → ✓ 8/8 static pages.
+- Browser 1024px: `success: true`, `interactive: true`, zero page errors,
+  zero console errors, zero network failures, no overflow; card click
+  (tap path) asserted; Emperor card screenshot shows the themed layer
+  state with laurel badge, capital, SPQR frame intact.
+- Fallback path: on machines without WebGL2 the canvas is never mounted;
+  the DOM card is the previous, already-verified experience.
+
+## Honest gaps
+
+- The harness's software rasterizer never produced a WebGL2 context, so
+  the shader itself is verified by code review + the served-chunk grep,
+  not pixels. In a real browser the reveal should be eyeballed once
+  (hover a card, then tab through: flood from pointer vs near-edge).
+- The hydration attribute-mismatch console warning (pre-existing since
+  pass 1) still flaps; page is interactive whenever it appears.
