@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { Fragment, useId, useState } from "react";
 import { PLANS, COMPARISON, numeralFor } from "@/lib/constants";
 import { Button } from "@/components/ui/Button";
 import Accordion from "@/components/ui/Accordion";
@@ -194,6 +194,36 @@ const ROMAN_FEATURES: Record<string, string[]> = {
 /* Comparison rows feed cards and table from one source (no duplicated copy). */
 const TABLE = COMPARISON;
 
+/* Presentational grouping of the capability rows (still one data source). */
+const GROUPS: readonly (readonly [string, readonly string[]])[] = [
+  ["FVNDAMENTVM — the floor", ["Data sources", "Refresh cadence"]],
+  ["SIGNA — what it tells you", ["Metric lineage", "Anomaly alerts"]],
+  ["IVRA IMPERII — enterprise law", ["SSO / SCIM", "Data residency"]],
+];
+
+/* A cell value: "—" renders as a muted pixel dash, everything else as text
+   with a small gold diamond, so absence reads as absence at a glance. */
+function CellValue({ value }: { value: string }) {
+  if (value === "—") {
+    return (
+      <span className="inline-flex flex-col items-center gap-1" aria-label="not included">
+        <span aria-hidden="true" className="flex gap-0.5">
+          <span className="h-0.5 w-3 bg-stone/50" />
+        </span>
+        <span className="sr-only">Not included</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span aria-hidden="true" className="text-gold text-[10px]">
+        ✦
+      </span>
+      {value}
+    </span>
+  );
+}
+
 export default function Orders() {
   const [annual, setAnnual] = useState(false);
   const liveId = useId();
@@ -372,50 +402,109 @@ export default function Orders() {
           <SpqrRule />
         </div>
 
-        {/* Tabula comparison: table on desktop, accordions below 768px,
-            both fed from the same COMPARISON rows. */}
-        <div className="mt-12 hidden md:block overflow-x-auto">
-          <table className="w-full text-sm border border-stone/40 border-collapse">
-            <caption className="sr-only">
-              Feature comparison across the Citizen, Senator and Emperor plans
-            </caption>
-            <thead className="sticky top-16 z-10">
-              <tr className="bg-charcoal border-b border-stone/40">
-                <th
-                  scope="col"
-                  className="text-left py-4 px-5 font-mono text-[11px] uppercase tracking-[0.2em] text-travertine"
-                >
-                  Capability
-                </th>
-                {PLANS.map((p) => (
-                  <th
-                    key={p.id}
-                    scope="col"
-                    className={cn(
-                      "py-4 px-5 font-display text-xl text-bone text-center",
-                      p.featured && "bg-charcoal/80 border-x border-gold/40"
-                    )}
-                  >
-                    {p.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {TABLE.map((row) => (
-                <tr key={row.capability} className="border-b border-stone/25">
-                  <th scope="row" className="text-left py-3.5 px-5 font-sans text-travertine">
-                    {row.capability}
-                  </th>
-                  <td className="py-3.5 px-5 text-center text-bone">{row.citizen}</td>
-                  <td className="py-3.5 px-5 text-center text-bone bg-oxidized/10">
-                    {row.senator}
-                  </td>
-                  <td className="py-3.5 px-5 text-center text-bone">{row.emperor}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* TABVLA COMPARATIONIS — carved-stone comparison tablet.
+            border-separate (not collapse): Chromium paints collapsed
+            borders of a sticky thead in the wrong place, which showed
+            as an empty floating band. Groups are presentational; the
+            rows still come only from COMPARISON. */}
+        <div className="mt-16 hidden md:block">
+          <div className="relative border border-gold/50 bg-charcoal/40 p-2 shadow-raised">
+            {/* corner rosettes */}
+            {["-top-1.5 -left-1.5", "-top-1.5 -right-1.5", "-bottom-1.5 -left-1.5", "-bottom-1.5 -right-1.5"].map(
+              (pos) => (
+                <span
+                  key={pos}
+                  aria-hidden="true"
+                  className={`absolute ${pos} h-3 w-3 bg-gold rotate-45`}
+                />
+              )
+            )}
+            <div className="border border-stone/40">
+              {/* title cartouche */}
+              <div className="flex items-center gap-4 border-b border-stone/40 px-8 py-5">
+                <div aria-hidden="true" className="meander-strip flex-1 opacity-40" />
+                <p className="font-mono text-xs uppercase tracking-[0.35em] text-gold whitespace-nowrap">
+                  Tabula Comparationis
+                </p>
+                <div aria-hidden="true" className="meander-strip flex-1 opacity-40" />
+              </div>
+
+              <table className="w-full text-sm border-separate [border-spacing:0]">
+                <caption className="sr-only">
+                  Feature comparison across the Citizen, Senator and Emperor plans
+                </caption>
+                <thead className="sticky top-16 z-10">
+                  <tr>
+                    <th
+                      scope="col"
+                      className="bg-ink text-left py-4 px-8 font-mono text-[11px] uppercase tracking-[0.25em] text-travertine border-b border-stone/40"
+                    >
+                      Capability
+                    </th>
+                    {PLANS.map((p) => (
+                      <th
+                        key={p.id}
+                        scope="col"
+                        className={cn(
+                          "bg-ink py-4 px-5 text-center border-b border-stone/40",
+                          p.featured ? "border-x border-gold/40" : ""
+                        )}
+                      >
+                        <span className="sr-only">{p.name}</span>
+                        <span aria-hidden="true" className="flex flex-col items-center gap-1.5">
+                          <span className="font-display text-xl text-bone">{p.name}</span>
+                          <span className="font-mono text-[9px] tracking-[0.3em] text-gold">
+                            {LATIN_SUBTITLE[p.id]}
+                          </span>
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {GROUPS.map(([group, caps]) => (
+                    <Fragment key={group}>
+                      {/* group subheader row */}
+                      <tr>
+                        <th
+                          scope="colgroup"
+                          colSpan={4}
+                          className="pt-6 pb-2 px-8 text-left font-mono text-[10px] uppercase tracking-[0.3em] text-gold/80"
+                        >
+                          {group}
+                        </th>
+                      </tr>
+                      {TABLE.filter((r) => caps.includes(r.capability)).map((row) => (
+                        <tr
+                          key={row.capability}
+                          className="group transition-colors hover:bg-gold/5"
+                        >
+                          <th
+                            scope="row"
+                            className="text-left py-3.5 px-8 font-sans text-travertine group-hover:text-bone border-b border-stone/20 transition-colors"
+                          >
+                            {row.capability}
+                          </th>
+                          {(["citizen", "senator", "emperor"] as const).map((tier) => (
+                            <td
+                              key={tier}
+                              className={cn(
+                                "py-3.5 px-5 text-center text-bone border-b border-stone/20",
+                                tier === "senator" &&
+                                  "bg-oxidized/10 border-x border-gold/30 group-hover:bg-oxidized/15 transition-colors"
+                              )}
+                            >
+                              <CellValue value={row[tier]} />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
         <div className="mt-12 md:hidden">
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-travertine mb-4">
