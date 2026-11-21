@@ -11,41 +11,95 @@ import { cn } from "@/lib/utils";
    (capital / name / blurb / price / features / cta) so every tier's rows
    stay on identical baselines — the brief's 1px alignment criterion. */
 
-/* Column capitals, drawn on a fixed 12-unit grid. Fills come from
-   currentColor / --accent / stone so they invert with the card theme
-   (bone-on-dark cards, ink-on-sand hero card). Ornament increases with
-   tier: Tuscan (plain) < Ionic (scrolls) < Corinthian (acanthus). */
+/* Column capitals at 3px pixel resolution (96×30 grid), fills from
+   currentColor / --accent / stone so they invert with the card theme.
+   Ornament increases with tier: Tuscan (plain, sturdy) < Ionic (volutes)
+   < Corinthian (two ranks of acanthus). Decorative only. */
 function Capital({ tier }: { tier: "citizen" | "senator" | "emperor" }) {
+  const P = 3; // pixel unit
+  let seq = 0;
+  const px = (x: number, y: number, w: number, h: number, fill: string, o?: number) => (
+    <rect key={`p${seq++}`} x={x * P} y={y * P} width={w * P} height={h * P} fill={fill} opacity={o} />
+  );
+  const INK = "var(--color-stone)";
+  const BODY = "currentColor";
+  const GOLD = "var(--accent)";
+  const DEEP = "var(--color-terra-deep)";
+
   return (
     <svg
-      viewBox="0 0 72 20"
-      className="mx-auto block h-5 w-[72px] text-(--on-surface)"
+      viewBox="0 0 96 30"
+      className="mx-auto block h-8 w-24 text-(--on-surface)"
       shapeRendering="crispEdges"
       aria-hidden="true"
     >
-      {/* abacus (top slab) */}
-      <rect x="4" y="0" width="64" height="4" fill="var(--color-stone)" />
-      {/* echinus */}
-      <rect x="8" y="4" width="56" height="6" fill="currentColor" opacity="0.55" />
-      {tier !== "citizen" && <rect x="8" y="4" width="56" height="2" fill="var(--accent)" />}
-      {/* necking */}
-      <rect x="16" y="10" width="40" height="10" fill="currentColor" />
-      <rect x="16" y="10" width="40" height="2" fill="var(--color-stone)" />
-      {tier === "senator" && (
+      {/* ─ abacus + echinus (shared) ─ */}
+      {px(4, 0, 24, 2, INK)}
+      {px(6, 2, 20, 2, BODY, 0.9)}
+      {tier !== "citizen" && px(6, 2, 20, 1, GOLD)}
+
+      {tier === "citizen" && (
         <>
-          <rect x="6" y="10" width="10" height="10" fill="currentColor" opacity="0.7" />
-          <rect x="56" y="10" width="10" height="10" fill="currentColor" opacity="0.7" />
-          <rect x="10" y="12" width="6" height="2" fill="var(--accent)" />
-          <rect x="56" y="12" width="6" height="2" fill="var(--accent)" />
+          {/* Tuscan: plain cushion, soft taper, four flutes */}
+          {px(8, 4, 16, 3, BODY)}
+          {px(10, 7, 12, 2, BODY, 0.8)}
+          {px(12, 9, 8, 5, BODY)}
+          {px(14, 9, 1, 5, INK, 0.55)}
+          {px(17, 9, 1, 5, INK, 0.55)}
+          {px(20, 9, 1, 5, INK, 0.55)}
+          {px(23, 9, 1, 5, INK, 0.55)}
         </>
       )}
+
+      {tier === "senator" && (
+        <>
+          {/* Ionic: egg-and-dart channel between two volutes */}
+          {px(9, 4, 10, 2, BODY)}
+          {px(12, 6, 4, 3, BODY, 0.85)}
+          {[11, 13, 15].map((x) => px(x, 6, 1, 2, GOLD))}
+          {/* volute left: concentric pixel spiral */}
+          {([[4, 6, 5, 5], [5, 7, 3, 3], [6, 8, 1, 1]] as const).map(([x, y, w, h], i) =>
+            px(x, y, w, h, i === 2 ? GOLD : BODY, i === 2 ? 1 : 0.85)
+          )}
+          {/* volute right (mirrored) */}
+          {([[19, 6, 5, 5], [20, 7, 3, 3], [23, 8, 1, 1]] as const).map(([x, y, w, h], i) =>
+            px(x, y, w, h, i === 2 ? GOLD : BODY, i === 2 ? 1 : 0.85)
+          )}
+          {/* fluted shaft stub */}
+          {px(12, 9, 8, 5, BODY)}
+          {px(14, 9, 1, 5, INK, 0.55)}
+          {px(17, 9, 1, 5, INK, 0.55)}
+        </>
+      )}
+
       {tier === "emperor" && (
         <>
-          {/* acanthus leaves */}
-          {[-2, 0, 2, 4, 6, 8].map((o) => (
-            <rect key={`l${o}`} x={18 + o * 6} y="14" width="4" height="6" fill="var(--accent)" />
+          {/* Corinthian: two ranks of acanthus + corner volutes + fleuron */}
+          {px(10, 4, 12, 2, BODY)}
+          {px(11, 6, 10, 2, BODY, 0.8)}
+          {/* upper rank (4 leaves, offset) */}
+          {[13, 16, 19, 22].map((x) => (
+            <g key={`u${x}`}>
+              {px(x, 8, 2, 2, GOLD)}
+              {px(x, 10, 1, 1, DEEP)}
+            </g>
           ))}
-          <rect x="12" y="10" width="48" height="2" fill="var(--color-terra-deep)" />
+          {/* lower rank (5 leaves, wider) */}
+          {[12, 15, 18, 21, 24].map((x) => (
+            <g key={`l${x}`}>
+              {px(x - 1, 11, 3, 2, GOLD)}
+              {px(x, 13, 1, 2, DEEP)}
+            </g>
+          ))}
+          {/* corner volutes */}
+          {px(9, 9, 2, 2, BODY, 0.9)}
+          {px(25, 9, 2, 2, BODY, 0.9)}
+          {/* fleuron */}
+          {px(19, 5, 2, 1, GOLD)}
+          {/* fluted shaft stub */}
+          {px(14, 15, 8, 4, BODY)}
+          {px(16, 15, 1, 4, INK, 0.55)}
+          {px(19, 15, 1, 4, INK, 0.55)}
         </>
       )}
     </svg>

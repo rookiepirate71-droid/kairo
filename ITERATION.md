@@ -179,3 +179,35 @@ Verified: tsc clean, 17/17 tests, browser 390px `success: true`
 legible and the Senator card top (capital, meander, subtitle) drawing in ink
 on sand; Annual toggle click → "billed annually" asserted. Desktop 1440px
 run also clean.
+
+---
+
+# Iteration — capital artwork v2
+
+Date: 2026-11-21 · follow-up to pass/orders-refine ("surely we can do
+better art right?").
+
+User screenshot showed the v1 capitals reading as a gray slab on a white
+block. Redrawn at 3px pixel resolution (96×30 viewBox, h-8 w-24):
+
+- Tuscan (Citizen): tapered cushion, four flutes in the shaft stub.
+- Ionic (Senator): egg-and-dart channel with gold darts, two concentric
+  pixel-spiral volutes with gold eyes.
+- Corinthian (Emperor): two ranks of acanthus leaves (gold + terra-deep
+  tips), corner volutes, fleuron.
+- All fills stay currentColor / --accent / stone so the artwork still
+  inverts on the sand card.
+
+Two dev-loop findings, worth remembering:
+1. The dev server served a stale Orders module after the rewrite (old
+   viewBox on the wire). `preview start` after killing next-server forces
+   recompilation — check the served SVG viewBox before debugging "why
+   didn't my change show up".
+2. React key warning: the px() helper keyed by `${x}-${y}` collides when
+   two rects share a grid cell across branches; keys are now sequential.
+
+Verified: tsc clean, 17/17 tests; 1440px browser run shows all three
+capitals side by side — Tuscan/Ionic/Corinthian distinct, Senator card
+fully legible ink-on-sand, laurel badge inside the padding box, coin
+glyphs, meander strips, SPQR rules. 390px clean too (zero console errors,
+no overflow).
