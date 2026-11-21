@@ -203,19 +203,19 @@ function rasteriseDomText(
     ctx.fillStyle = colorOverride;
     const lineRect = lineEl.getBoundingClientRect();
     const range = document.createRange();
-    // Paint per line fragment: characters are grouped by their rect top, so a
-    // wrapped node paints once per line. Groups whose rect falls outside the
-    // marked element are clipped in the DOM too (odometer wheel faces above
-    // and below the visible one, the sr-only value copy) and are skipped —
-    // the visible face is the one whose rect intersects the element.
-    let start = 0;
-    let top: number | null = null;
-    const paintGroup = (end: number) => {
-      if (end <= start) return;
-      range.setStart(node, start);
-      range.setEnd(node, end);
+    // Paint per character at its own DOM rect: canvas glyph advances run wider
+    // than the DOM's, so painting a whole line in one fillText drifts past the
+    // card edge and clips. Per-char placement lets the DOM decide where every
+    // glyph goes. Chars whose rect falls outside the marked element are clipped
+    // in the DOM too (odometer wheel faces above and below the visible one, the
+    // sr-only value copy) and are skipped — the visible face is the one whose
+    // rect intersects the element.
+    let off = 0;
+    for (const ch of node.data) {
+      range.setStart(node, off);
+      range.setEnd(node, off + ch.length);
+      off += ch.length;
       const r = range.getBoundingClientRect();
-      const s = node.data.slice(range.startOffset, range.endOffset);
       const clipped =
         r.width === 0 ||
         r.height === 0 ||
@@ -223,25 +223,13 @@ function rasteriseDomText(
         r.top > lineRect.bottom ||
         r.right < lineRect.left ||
         r.left > lineRect.right;
-      start = end;
-      if (clipped) return;
+      if (clipped) continue;
       ctx.fillText(
-        s,
+        ch,
         r.left - box.left,
         r.top - box.top + r.height / 2
       );
-    };
-    for (let i = 1; i <= node.data.length; i++) {
-      range.setStart(node, i - 1);
-      range.setEnd(node, i);
-      const cr = range.getBoundingClientRect();
-      if (top === null) top = cr.top;
-      if (cr.top !== top) {
-        paintGroup(i - 1);
-        top = cr.top;
-      }
     }
-    paintGroup(node.data.length);
   }
   return c;
 }
@@ -440,8 +428,27 @@ export default function TierCanvas({
         gl!.uniform2f(loc.mouse, mouse.x, mouse.y);
         gl!.drawArrays(gl!.TRIANGLES, 0, 3);
       };
+      // sample at the moment of truth: on every activation from idle, re-measure
+      // the buffer and re-rasterise both textures from the DOM as it is NOW.
+      // Mount-time rasterise can go stale (rotation, reflow, font swap, a resize
+      // that raced the observer) — the flood then paints a narrower layout's
+      // wraps, oversized, clipped over a card whose real text fits.
+      const refresh = (): void => {
+        if (disposed) return;
+        const s = measure();
+        if (s.w !== canvas.width || s.h !== canvas.height) {
+          canvas.width = s.w;
+          canvas.height = s.h;
+          gl!.viewport(0, 0, s.w, s.h);
+        }
+        gl!.deleteTexture(texBase);
+        gl!.deleteTexture(texTheme);
+        texBase = rebuildTex(0, T.textBase);
+        texTheme = rebuildTex(1, T.textTheme);
+      };
       const start = (): void => {
         if (raf || disposed) return;
+        refresh();
         last = performance.now();
         raf = requestAnimationFrame(tick);
       };
