@@ -52,8 +52,8 @@ export const TIERS: Record<TierId, TierTokens> = {
 
 /** Reveal motion: exponential ease rates (1/s). In is faster than out. */
 export const REVEAL = {
-  rateIn: 2.4,
-  rateOut: 3.2,
+  rateIn: 1.85,
+  rateOut: 2.46,
   /** front wobble frequency multiplier */
   wobbleFreq: 6.0,
   /** refraction ripple amplitude, in texture-space units */

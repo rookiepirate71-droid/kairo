@@ -35,7 +35,8 @@ uniform vec3  uStoneB;
 uniform vec3  uVein;
 uniform float uStrata;     // 1 = citizen strata
 uniform float uSheen;
-uniform float uDither[16];
+uniform float uDither[16]; // Bayer 4x4 thresholds
+uniform float uDpr;        // device pixel ratio cap used for the buffer
 uniform sampler2D uTextBase;   // bone text, transparent bg
 uniform sampler2D uTextTheme;  // themed text, transparent bg
 
@@ -136,10 +137,12 @@ void main() {
   float shadow = pres * smoothstep(0.0, 0.05, front);  // dark shadow ahead of front
   float highlight = pres * (1.0 - smoothstep(-0.03, 0.0, front)); // bright just behind
   float leaf = pres * (1.0 - smoothstep(0.0, ${REVEAL.leafWidth}, abs(front)));
-  // bayer 4x4 dithered mist band ahead of the front, gold
-  ivec2 px = ivec2(frag) % 4;
-  float bayer = uDither[px.y * 4 + px.x];
-  float mist = pres * step(bayer, 0.5) * smoothstep(0.0, 0.09, front) * (1.0 - smoothstep(0.09, 0.14, front));
+  // pixel-staircase mist ahead of the front (demo parity): Bayer 4x4 sampled
+  // on a 3-device-pixel grid, so the dithering breaks the wave edge into
+  // chunky visible pixels instead of per-pixel noise
+  ivec2 px3 = ivec2(floor(frag / (3.0 * uDpr)));
+  float bay = uDither[(px3.y % 4) * 4 + (px3.x % 4)];
+  float mist = pres * step(bay, pow(1.0 - smoothstep(0.0, 0.11, front), 2.0));
 
   // ---- text layers ----
   vec4 textBase = texture(uTextBase, textUv);
@@ -153,7 +156,7 @@ void main() {
   flood.rgb *= (1.0 - 0.35 * shadow * (1.0 - inside)); // shadow ahead
   flood.rgb += 0.30 * highlight * (1.0 - inside);      // highlight behind
   flood.rgb = mix(flood.rgb, uVein, leaf * 0.9);       // gold-leaf line
-  flood.rgb = mix(flood.rgb, uVein, mist * 0.35);      // dithered gold mist
+  flood.rgb = mix(flood.rgb, uVein, mist * 0.55);      // dithered pixel mist
 
   vec3 col = mix(vec3(0.0), flood.rgb, flood.a * inside);
   // text always on top of marble, beneath it the DOM shows base text
@@ -161,45 +164,85 @@ void main() {
   outColor = vec4(col, inside * flood.a);
 }`;
 
-/* Rasterise the card text into a canvas texture. Fonts are read from the
-   computed style of the real DOM card, so next/font hashed families are
-   picked up without hardcoding. */
-function rasteriseText(
-  opts: {
-    width: number;
-    height: number;
-    dpr: number;
-    fontFamily: string;
-    monoFamily: string;
-    color: string;
-    lines: { text: string; kind: "eyebrow" | "name" | "blurb" | "price" | "feature" | "cta"; y: number }[];
-  }
+/* Rasterise the card's *real* DOM text into a canvas texture. Every element
+   marked data-gl-line is measured with getBoundingClientRect and painted at
+   its exact position, font and colour, so the flood's text layer matches the
+   card pixel for pixel — no hardcoded layout to drift out of sync. */
+function rasteriseDomText(
+  card: HTMLElement,
+  bufferW: number,
+  bufferH: number,
+  dpr: number,
+  colorOverride: string
 ): HTMLCanvasElement {
-  const { width, height, dpr, fontFamily, monoFamily, color, lines } = opts;
   const c = document.createElement("canvas");
-  c.width = Math.max(1, Math.round(width * dpr));
-  c.height = Math.max(1, Math.round(height * dpr));
+  c.width = Math.max(1, bufferW);
+  c.height = Math.max(1, bufferH);
   const ctx = c.getContext("2d");
   if (!ctx) return c;
+  // buffer pixels are dpr-scaled; scale the context back to CSS px so the
+  // texture maps 1:1 onto the drawing buffer (double-scaling was the cause
+  // of the oversized ghost text after the flood)
   ctx.scale(dpr, dpr);
-  ctx.textAlign = "center";
-  ctx.fillStyle = color;
-  const S = width / 300; // card design width 300
-  for (const line of lines) {
-    if (line.kind === "eyebrow" || line.kind === "feature") {
-      ctx.font = `11px ${monoFamily}`;
-      if (line.kind === "eyebrow") {
-        ctx.letterSpacing = "3px";
+  ctx.textBaseline = "middle";
+  const box = card.getBoundingClientRect();
+  const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+  const texts: Text[] = [];
+  while (walker.nextNode()) texts.push(walker.currentNode as Text);
+  for (const node of texts) {
+    const el = node.parentElement;
+    const lineEl = el?.closest<HTMLElement>("[data-gl-line]");
+    if (!el || !lineEl) continue;
+    const cs = getComputedStyle(el);
+    // skip text that is not painted in the DOM: visibility:hidden sizer
+    // digits inside the odometer wheels, and .sr-only copies (the counter's
+    // accessible value) — both have live layout boxes but no pixels
+    if (cs.visibility === "hidden" || el.closest(".sr-only")) continue;
+    ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    ctx.letterSpacing = cs.letterSpacing;
+    ctx.fillStyle = colorOverride;
+    const lineRect = lineEl.getBoundingClientRect();
+    const range = document.createRange();
+    // Paint per line fragment: characters are grouped by their rect top, so a
+    // wrapped node paints once per line. Groups whose rect falls outside the
+    // marked element are clipped in the DOM too (odometer wheel faces above
+    // and below the visible one, the sr-only value copy) and are skipped —
+    // the visible face is the one whose rect intersects the element.
+    let start = 0;
+    let top: number | null = null;
+    const paintGroup = (end: number) => {
+      if (end <= start) return;
+      range.setStart(node, start);
+      range.setEnd(node, end);
+      const r = range.getBoundingClientRect();
+      const s = node.data.slice(range.startOffset, range.endOffset);
+      const clipped =
+        r.width === 0 ||
+        r.height === 0 ||
+        r.bottom < lineRect.top ||
+        r.top > lineRect.bottom ||
+        r.right < lineRect.left ||
+        r.left > lineRect.right;
+      start = end;
+      if (clipped) return;
+      ctx.fillText(
+        s,
+        r.left - box.left,
+        r.top - box.top + r.height / 2
+      );
+    };
+    for (let i = 1; i <= node.data.length; i++) {
+      range.setStart(node, i - 1);
+      range.setEnd(node, i);
+      const cr = range.getBoundingClientRect();
+      if (top === null) top = cr.top;
+      if (cr.top !== top) {
+        paintGroup(i - 1);
+        top = cr.top;
       }
-    } else if (line.kind === "name" || line.kind === "price") {
-      ctx.font = `italic 30px ${fontFamily}`;
-    } else {
-      ctx.font = `13px ${fontFamily}`;
     }
-    ctx.fillText(line.text, width / 2, line.y);
-    ctx.letterSpacing = "0px";
+    paintGroup(node.data.length);
   }
-  void S;
   return c;
 }
 
@@ -207,12 +250,10 @@ export default function TierCanvas({
   tier,
   active = false,
   originRef,
-  lines,
 }: {
   tier: TierId;
   active?: boolean;
   originRef: React.RefObject<{ x: number; y: number }>;
-  lines: { text: string; kind: "eyebrow" | "name" | "blurb" | "price" | "feature" | "cta"; y: number }[];
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef(0);
@@ -222,10 +263,6 @@ export default function TierCanvas({
   // getContext, and every shader call after that silently no-ops
   const activeRef = useRef(active);
   const startRef = useRef<(() => void) | undefined>(undefined);
-  // lines is re-created by the parent on every render; the GL effect must not
-  // re-run on it (teardown loses the context), so read it through a ref
-  const linesRef = useRef(lines);
-  linesRef.current = lines;
 
   useEffect(() => {
     activeRef.current = active;
@@ -304,7 +341,7 @@ export default function TierCanvas({
         res: U("uRes"), time: U("uTime"), prog: U("uProgress"), origin: U("uOrigin"),
         a: U("uStoneA"), b: U("uStoneB"), vein: U("uVein"), strata: U("uStrata"),
         sheen: U("uSheen"), dither: U("uDither[0]"), tb: U("uTextBase"), tt: U("uTextTheme"),
-        mouse: U("uMouse"),
+        mouse: U("uMouse"), dpr: U("uDpr"),
       };
 
       const hex = (h: string): [number, number, number] => {
@@ -319,17 +356,19 @@ export default function TierCanvas({
       gl!.uniform1f(loc.sheen, REVEAL.sheen);
       const BAYER = [0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5].map(n => (n+0.5)/16);
       gl!.uniform1fv(loc.dither, BAYER);
+      gl!.uniform1f(loc.dpr, dpr);
 
-      // text textures: families from the computed style of the canvas itself
-      const cs = getComputedStyle(canvas);
-      const makeTex = (unit: number, color: string): WebGLTexture => {
-        const c = rasteriseText({
-          width: canvas.width, height: canvas.height, dpr,
-          fontFamily: cs.fontFamily,
-          monoFamily: cs.fontFamily,
-          color,
-          lines: linesRef.current,
-        });
+      // text textures: rasterised from the card's real DOM, tinted to the
+      // tier's base/theme colours
+      const card = canvas.parentElement;
+      const rebuildTex = (unit: number, color: string): WebGLTexture => {
+        const c = rasteriseDomText(
+          card ?? canvas,
+          canvas.width,
+          canvas.height,
+          dpr,
+          color
+        );
         const tex = gl!.createTexture()!;
         gl!.activeTexture(unit === 0 ? gl!.TEXTURE0 : gl!.TEXTURE1);
         gl!.bindTexture(gl!.TEXTURE_2D, tex);
@@ -343,18 +382,25 @@ export default function TierCanvas({
         gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
         return tex;
       };
-      let texBase = makeTex(0, T.textBase);
-      let texTheme = makeTex(1, T.textTheme);
+      let texBase = rebuildTex(0, T.textBase);
+      let texTheme = rebuildTex(1, T.textTheme);
       gl!.uniform1i(loc.tb, 0);
       gl!.uniform1i(loc.tt, 1);
       gl!.activeTexture(gl!.TEXTURE0);
       gl!.bindTexture(gl!.TEXTURE_2D, texBase);
       gl!.activeTexture(gl!.TEXTURE1);
       gl!.bindTexture(gl!.TEXTURE_2D, texTheme);
+      // re-rasterise once webfonts land, so the texture uses the real faces
+      void document.fonts?.ready.then(() => {
+        if (disposed) return;
+        gl!.deleteTexture(texBase);
+        gl!.deleteTexture(texTheme);
+        texBase = rebuildTex(0, T.textBase);
+        texTheme = rebuildTex(1, T.textTheme);
+      });
 
       // continuous cursor position over the parent card, top-down like origin
       const mouse = { x: originRef.current?.x ?? 0.5, y: originRef.current?.y ?? 0.5 };
-      const card = canvas.parentElement;
       const onMove = (e: PointerEvent): void => {
         const r = canvas.getBoundingClientRect();
         if (r.height === 0 || r.width === 0) return;
@@ -414,8 +460,8 @@ export default function TierCanvas({
         gl!.viewport(0, 0, s.w, s.h);
         gl!.deleteTexture(texBase);
         gl!.deleteTexture(texTheme);
-        texBase = makeTex(0, T.textBase);
-        texTheme = makeTex(1, T.textTheme);
+        texBase = rebuildTex(0, T.textBase);
+        texTheme = rebuildTex(1, T.textTheme);
       });
       ro.observe(canvas);
       if (activeRef.current) start();

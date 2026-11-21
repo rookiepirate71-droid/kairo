@@ -208,22 +208,6 @@ function RevealCard({
   };
 
   const active = state === "active";
-  const canvasLines = [
-    { text: `${LATIN_SUBTITLE[plan.id]}`, kind: "eyebrow" as const, y: 40 },
-    { text: plan.name, kind: "name" as const, y: 80 },
-    { text: plan.blurb, kind: "blurb" as const, y: 110 },
-    {
-      text: price !== null ? `$${price} / mo` : "By rite",
-      kind: "price" as const,
-      y: 160,
-    },
-    ...(ROMAN_FEATURES[plan.id] ?? []).map((f, i) => ({
-      text: f,
-      kind: "feature" as const,
-      y: 200 + i * 22,
-    })),
-  ];
-
   return (
     <div
       ref={cardRef}
@@ -283,7 +267,6 @@ function RevealCard({
           tier={plan.id as "citizen" | "senator" | "emperor"}
           active={active}
           originRef={originRef}
-          lines={canvasLines}
         />
       )}
 
@@ -291,16 +274,16 @@ function RevealCard({
       <div className="sr-only">{CAPITAL_ALT[plan.id]}</div>
       <div className="pt-1">
         <Capital tier={plan.id as "citizen" | "senator" | "emperor"} />
-        <p className="mt-2 text-center font-mono text-[11px] tracking-[0.3em] text-(--on-surface-muted)">
+        <p data-gl-line className="mt-2 text-center font-mono text-[11px] tracking-[0.3em] text-(--on-surface-muted)">
           {LATIN_SUBTITLE[plan.id]}
         </p>
         <div aria-hidden="true" className="meander-strip mt-3 opacity-30" />
       </div>
 
-      <h3 className="mt-4 text-center font-display text-3xl text-(--on-surface)">
+      <h3 data-gl-line className="mt-4 text-center font-display text-3xl text-(--on-surface)">
         {plan.name}
       </h3>
-      <p className="mt-2 min-h-[2.5em] text-center text-sm text-(--on-surface-muted)">
+      <p data-gl-line className="mt-2 min-h-[2.5em] text-center text-sm text-(--on-surface-muted)">
         {plan.blurb}
       </p>
       <p
@@ -309,21 +292,23 @@ function RevealCard({
         <Coin />
         {price !== null ? (
           <>
-            <AnimatedCounter
-              value={price}
-              prefix="$"
-              className="tabular-nums"
-              duration={0.3}
-            />
-            <span className="text-base font-sans text-(--on-surface)"> / mo</span>
+            <span data-gl-line className="tabular-nums">
+              <AnimatedCounter
+                value={price}
+                prefix="$"
+                className="tabular-nums"
+                duration={0.3}
+              />
+            </span>
+            <span data-gl-line className="text-base font-sans text-(--on-surface)"> / mo</span>
             {annual && (
-              <span className="mt-1 block font-sans text-xs text-(--on-surface-muted)">
+              <span data-gl-line className="mt-1 block font-sans text-xs text-(--on-surface-muted)">
                 billed annually
               </span>
             )}
           </>
         ) : (
-          <span className="italic">By rite</span>
+          <span data-gl-line className="italic">By rite</span>
         )}
       </p>
 
@@ -333,13 +318,14 @@ function RevealCard({
             <span className="mt-0.5 text-(--accent)" aria-hidden="true">
               ✦
             </span>
-            {f}
+            <span data-gl-line>{f}</span>
           </li>
         ))}
       </ul>
 
       <div className="mt-8">
         <Button
+          data-gl-line
           variant={hero ? "primary" : "secondary"}
           className={cn(
             "w-full min-h-[48px] rounded-full",
