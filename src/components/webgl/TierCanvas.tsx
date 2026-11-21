@@ -171,7 +171,7 @@ void main() {
   vec3 col = mix(vec3(0.0), flood.rgb, flood.a * inside);
   // text always on top of marble, beneath it the DOM shows base text
   col = mix(col, text.rgb, text.a);
-  outColor = vec4(col, inside * flood.a);
+  outColor = vec4(clamp(col, vec3(0.0), vec3(1.0)), inside * flood.a);
 }`;
 
 /* Rasterise the card's *real* DOM text into a canvas texture. Every element
@@ -410,7 +410,17 @@ export default function TierCanvas({
       let raf = 0;
       let last = 0;
       let visible = true;
-      const onLost = (e: Event): void => e.preventDefault();
+      const onLost = (e: Event): void => {
+        e.preventDefault();
+        // A lost backing store can composite as an opaque white bitmap while
+        // data-on keeps the canvas at full opacity — drop it at once so the
+        // DOM card takes over instead of flashing white.
+        canvas.style.opacity = "0";
+        if (raf) {
+          cancelAnimationFrame(raf);
+          raf = 0;
+        }
+      };
       canvas.addEventListener("webglcontextlost", onLost);
 
       const tick = (now: number): void => {
@@ -465,7 +475,16 @@ export default function TierCanvas({
       startRef.current = start;
 
       const io = new IntersectionObserver(([e]) => {
-        visible = e?.isIntersecting ?? true;
+        const on = e?.isIntersecting ?? true;
+        visible = on;
+        // an offscreen canvas holds no live pixels; never let its (possibly
+        // evicted) buffer composite over the card
+        canvas.style.opacity = on ? "" : "0";
+        if (!on && raf) {
+          cancelAnimationFrame(raf);
+          raf = 0;
+        }
+        if (on && activeRef.current) start();
       });
       io.observe(canvas);
       // keep the buffer and text textures matched to the card's CSS size

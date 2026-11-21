@@ -50,10 +50,12 @@ export const TIERS: Record<TierId, TierTokens> = {
   },
 };
 
-/** Reveal motion: exponential ease rates (1/s). In is faster than out. */
+/** Reveal motion: exponential ease rates (1/s). In is slow and gradual — the
+    flood visibly sweeps through 10%, 20%, 30%… over a few seconds; out is
+    quicker so un-hovering doesn't linger. */
 export const REVEAL = {
-  rateIn: 1.85,
-  rateOut: 2.46,
+  rateIn: 0.6,
+  rateOut: 1.2,
   /** front wobble frequency multiplier */
   wobbleFreq: 6.0,
   /** refraction ripple amplitude, in texture-space units */
