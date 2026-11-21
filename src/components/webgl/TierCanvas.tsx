@@ -107,12 +107,16 @@ void main() {
   if (inside > 0.001) {
     vec2 w = warp(p * 2.4);
     float body = fbm(w);
-    float vein = ridged(w * 1.6 + 3.7);
-    vein = pow(clamp(vein, 0.0, 1.0), 6.0);
-    // fine secondary veining band: sparse hairline veins over the coarse ones
-    float veinFine = pow(clamp(ridged(w * 3.1 + 11.3), 0.0, 1.0), 14.0);
+    // coarse + mid + fine veining: three scales so veins read often, then a
+    // hard smoothstep so each band is thick with a crisp crack-like edge and a
+    // fully saturated (dark gold) core instead of a faint blended haze
+    float vein = pow(clamp(ridged(w * 1.6 + 3.7), 0.0, 1.0), 4.0);
+    float veinMid = pow(clamp(ridged(w * 2.3 + 7.1), 0.0, 1.0), 9.0);
+    float veinFine = pow(clamp(ridged(w * 3.1 + 11.3), 0.0, 1.0), 10.0);
+    float veins = clamp(vein * 0.8 + veinMid * 0.55 + veinFine * 0.45, 0.0, 1.0);
+    veins = smoothstep(0.24, 0.52, veins);
     marble = mix(uStoneA, uStoneB, smoothstep(0.35, 0.75, body));
-    marble = mix(marble, uVein, clamp(vein * 0.55 + veinFine * 0.35, 0.0, 1.0));
+    marble = mix(marble, uVein, veins);
     if (uStrata > 0.5) {
       // sinusoidal strata for the citizen tier
       float band = 0.5 + 0.5 * sin(w.y * 24.0 + 2.0 * fbm(w * 0.7));
