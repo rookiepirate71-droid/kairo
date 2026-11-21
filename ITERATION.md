@@ -326,3 +326,50 @@ details: "yes import and use it".
   warning flapped again on both runs; allowedDevOrigins already covers
   *.vercel.run and every step still passed (matches the flap documented
   since pass 1).
+
+# Iteration — hotfix: the reveal shader never compiled
+
+Date: 2026-11-21 · Branch pass/orders-liquid.
+Work order: user pasted demo screenshots as the quality target and asked
+"wtf are you doing?" — the shipped cards showed no liquid at all.
+
+## Root causes (three, stacked, all silent)
+
+1. `int & uint` in the vertex shader (`(gl_VertexID << 1) & 2u`) is
+   illegal in GLSL ES 3.00. Compile threw on every GPU; the bare `catch`
+   fell back to the DOM card with no signal. Fix: keep the bit-trick in
+   ints, `float(...)` after (`& 2`).
+2. `FRAG.replace("OCTAVES", …)` patched the first occurrence — which was
+   the GLSL *comment* mentioning OCTAVES, not the two loop headers. Fix:
+   `replaceAll` + comment reworded.
+3. Dead-canvas reuse: the effect depended on `active` and a fresh
+   `lines` array, so every hover/re-render tore the context down
+   (`loseContext`) and re-setup on the same canvas — which then hands
+   back the dead context and fails all over again. Fix: GL setup runs
+   once per mount; `active` flows through `activeRef`/`startRef`, `lines`
+   through `linesRef`. Fallback paths now `console.error` with shader
+   name + numbered source.
+
+## Also fixed
+
+- 0×0 drawing buffer: Orders passed `width={0} height={0}`; buffer sized
+  from props rendered nothing with no error. Canvas now measures its own
+  CSS box (`getBoundingClientRect`) with a ResizeObserver that re-sizes
+  the buffer and re-rasterises the text textures.
+- Canvas-texture Y-flip: 2D-canvas uploads are top-down, GL uv bottom-up
+  — card text rendered mirrored. `UNPACK_FLIP_Y_WEBGL` on upload.
+- Demo-vs-ours sanity run: served the pasted demo from public/, drove it
+  in the harness browser (slow-mo tick, card click) — it renders the
+  blob mid-flood and full travertine, proving the environment does give
+  WebGL2 and the original cards were genuinely broken.
+
+## Verified (production build, this turn)
+
+- tsc clean; vitest 17/17; next build 8/8 pages.
+- 1280px: click Senator card → marble floods the card, wine/purple stone
+  with gold veining, text refracts at the front and reads upright after
+  the Y-flip fix; zero console errors.
+- 390px: click Senator card, asserts pass, interactive, zero errors.
+- Remaining known wobble: mid-flood, the rasterised text texture sits
+  slightly off the DOM text (font metrics + centered lines in
+  canvasLines); at rest the canvas covers it fully.

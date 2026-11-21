@@ -284,8 +284,6 @@ function RevealCard({
           active={active}
           originRef={originRef}
           lines={canvasLines}
-          width={0}
-          height={0}
         />
       )}
 

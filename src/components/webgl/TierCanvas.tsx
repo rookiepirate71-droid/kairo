@@ -18,7 +18,7 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 const VERT = `#version 300 es
 void main() {
   // full-screen triangle from gl_VertexID, no attributes
-  vec2 pos = vec2((gl_VertexID << 1) & 2u, gl_VertexID & 2u);
+  vec2 pos = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
   gl_Position = vec4(pos * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
@@ -56,7 +56,7 @@ float noise(vec2 p) {
     mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x),
     u.y);
 }
-// domain-warped fbm; OCTAVES is patched per GPU tier
+// domain-warped fbm; octave count is patched per GPU tier
 float fbm(vec2 p) {
   float v = 0.0;
   float a = 0.5;
@@ -208,19 +208,29 @@ export default function TierCanvas({
   active = false,
   originRef,
   lines,
-  width = 0,
-  height = 0,
 }: {
   tier: TierId;
   active?: boolean;
   originRef: React.RefObject<{ x: number; y: number }>;
   lines: { text: string; kind: "eyebrow" | "name" | "blurb" | "price" | "feature" | "cta"; y: number }[];
-  width?: number;
-  height?: number;
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef(0);
   const reduced = useReducedMotion();
+  // active flows through refs so a hover never tears down the GL context:
+  // a canvas whose context was lost returns the dead context on the next
+  // getContext, and every shader call after that silently no-ops
+  const activeRef = useRef(active);
+  const startRef = useRef<(() => void) | undefined>(undefined);
+  // lines is re-created by the parent on every render; the GL effect must not
+  // re-run on it (teardown loses the context), so read it through a ref
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+
+  useEffect(() => {
+    activeRef.current = active;
+    if (active) startRef.current?.();
+  }, [active]);
 
   useEffect(() => {
     if (reduced) return;
@@ -234,18 +244,26 @@ export default function TierCanvas({
     void (async () => {
       // GPU tier probe: low-end gets fewer fbm octaves
       const glProbe = canvas.getContext("webgl2");
-      if (!glProbe) return; // caller shows the DOM fallback
+      if (!glProbe) {
+        console.error("[TierCanvas] webgl2 unavailable — DOM fallback card stays");
+        return;
+      }
       gl = glProbe;
       const isLowEnd = gl.getExtension("WEBGL_lose_context") === null;
       const OCTAVES = isLowEnd ? 3 : 5;
-      const frag = FRAG.replace("OCTAVES", String(OCTAVES));
+      const frag = FRAG.replaceAll("OCTAVES", String(OCTAVES));
 
       const compile = (type: number, src: string): WebGLShader => {
         const s = gl!.createShader(type)!;
         gl!.shaderSource(s, src);
         gl!.compileShader(s);
         if (!gl!.getShaderParameter(s, gl!.COMPILE_STATUS)) {
-          throw new Error(gl!.getShaderInfoLog(s) ?? "shader compile failed");
+          throw new Error(
+            `shader compile failed (${type === gl!.VERTEX_SHADER ? "vert" : "frag"}): ` +
+            (gl!.getShaderInfoLog(s) ?? "no log") + "\n" +
+            (gl!.getShaderSource(s) ?? "SOURCE NULL — context lost")
+              .split("\n").map((l, i) => `${i + 1}: ${l}`).join("\n")
+          );
         }
         return s;
       };
@@ -259,15 +277,26 @@ export default function TierCanvas({
         if (!gl!.getProgramParameter(program, gl!.LINK_STATUS)) {
           throw new Error(gl!.getProgramInfoLog(program) ?? "link failed");
         }
-      } catch {
-        return; // shader failed: DOM fallback card stays
+      } catch (err) {
+        console.error("[TierCanvas] shader program failed:", err);
+        return; // DOM fallback card stays
       }
       if (disposed) return;
       gl!.useProgram(program);
 
       const dpr = Math.min(window.devicePixelRatio || 1, REVEAL.maxDpr);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
+      // size from the canvas's CSS box (it stretches over the parent card) —
+      // a 0x0 drawing buffer renders nothing and throws no error
+      const measure = (): { w: number; h: number } => {
+        const r = canvas.getBoundingClientRect();
+        return {
+          w: Math.max(1, Math.round(r.width * dpr)),
+          h: Math.max(1, Math.round(r.height * dpr)),
+        };
+      };
+      const size = measure();
+      canvas.width = size.w;
+      canvas.height = size.h;
       gl!.viewport(0, 0, canvas.width, canvas.height);
 
       const U = (n: string) => gl!.getUniformLocation(program, n);
@@ -293,16 +322,20 @@ export default function TierCanvas({
 
       // text textures: families from the computed style of the canvas itself
       const cs = getComputedStyle(canvas);
-      const makeTex = (color: string): WebGLTexture => {
+      const makeTex = (unit: number, color: string): WebGLTexture => {
         const c = rasteriseText({
-          width, height, dpr,
+          width: canvas.width, height: canvas.height, dpr,
           fontFamily: cs.fontFamily,
           monoFamily: cs.fontFamily,
           color,
-          lines,
+          lines: linesRef.current,
         });
         const tex = gl!.createTexture()!;
+        gl!.activeTexture(unit === 0 ? gl!.TEXTURE0 : gl!.TEXTURE1);
         gl!.bindTexture(gl!.TEXTURE_2D, tex);
+        // 2D-canvas uploads are top-down; GL uv is bottom-up — flip so the
+        // rasterised card text isn't mirrored vertically
+        gl!.pixelStorei(gl!.UNPACK_FLIP_Y_WEBGL, true);
         gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, c);
         gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.LINEAR);
         gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.LINEAR);
@@ -310,8 +343,8 @@ export default function TierCanvas({
         gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
         return tex;
       };
-      const texBase = makeTex(T.textBase);
-      const texTheme = makeTex(T.textTheme);
+      let texBase = makeTex(0, T.textBase);
+      let texTheme = makeTex(1, T.textTheme);
       gl!.uniform1i(loc.tb, 0);
       gl!.uniform1i(loc.tt, 1);
       gl!.activeTexture(gl!.TEXTURE0);
@@ -340,12 +373,12 @@ export default function TierCanvas({
         raf = requestAnimationFrame(tick);
         const dt = Math.min((now - last) / 1000, 0.1);
         last = now;
-        const target = active ? 1 : 0;
-        const rate = active ? REVEAL.rateIn : REVEAL.rateOut;
+        const target = activeRef.current ? 1 : 0;
+        const rate = activeRef.current ? REVEAL.rateIn : REVEAL.rateOut;
         // exponential ease toward the target; origin eased elsewhere
         const p = progressRef.current;
         progressRef.current = p + (target - p) * (1 - Math.exp(-rate * dt));
-        if (Math.abs(target - progressRef.current) < 0.001 && !active) {
+        if (Math.abs(target - progressRef.current) < 0.001 && !activeRef.current) {
           progressRef.current = 0;
           // fully collapsed: stop the loop until the next activation
           cancelAnimationFrame(raf);
@@ -366,16 +399,31 @@ export default function TierCanvas({
         last = performance.now();
         raf = requestAnimationFrame(tick);
       };
+      startRef.current = start;
 
       const io = new IntersectionObserver(([e]) => {
         visible = e?.isIntersecting ?? true;
       });
       io.observe(canvas);
-      if (active) start();
+      // keep the buffer and text textures matched to the card's CSS size
+      const ro = new ResizeObserver(() => {
+        const s = measure();
+        if (s.w === canvas.width && s.h === canvas.height) return;
+        canvas.width = s.w;
+        canvas.height = s.h;
+        gl!.viewport(0, 0, s.w, s.h);
+        gl!.deleteTexture(texBase);
+        gl!.deleteTexture(texTheme);
+        texBase = makeTex(0, T.textBase);
+        texTheme = makeTex(1, T.textTheme);
+      });
+      ro.observe(canvas);
+      if (activeRef.current) start();
 
       teardown = () => {
         if (raf) cancelAnimationFrame(raf);
         io.disconnect();
+        ro.disconnect();
         canvas.removeEventListener("webglcontextlost", onLost);
         card?.removeEventListener("pointermove", onMove);
         gl!.deleteTexture(texBase);
@@ -391,7 +439,7 @@ export default function TierCanvas({
       disposed = true;
       teardown?.();
     };
-  }, [reduced, tier, active, width, height, lines, originRef]);
+  }, [reduced, tier, originRef]);
 
   // while inactive the canvas is fully transparent — the DOM card shows
   return (
