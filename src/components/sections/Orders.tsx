@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import Accordion from "@/components/ui/Accordion";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import TierCanvas from "@/components/webgl/TierCanvas";
+import { useInView } from "@/hooks/useInView";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { cn } from "@/lib/utils";
 
 /* Cards place their six blocks on a shared 6-row grid
@@ -395,7 +397,7 @@ function CellValue({ value }: { value: string }) {
     return (
       <span className="inline-flex flex-col items-center gap-1" aria-label="not included">
         <span aria-hidden="true" className="flex gap-0.5">
-          <span className="h-0.5 w-3 bg-stone/50" />
+          <span className="h-0.5 w-3 bg-ink/30" />
         </span>
         <span className="sr-only">Not included</span>
       </span>
@@ -403,11 +405,44 @@ function CellValue({ value }: { value: string }) {
   }
   return (
     <span className="inline-flex items-center gap-2">
-      <span aria-hidden="true" className="text-gold text-[10px]">
+      <span aria-hidden="true" className="text-terra-deep text-[10px]">
         ✦
       </span>
       {value}
     </span>
+  );
+}
+
+/* A roller rod: dark lacquered wood bar overhanging the sheet, with
+   turned end-knobs. Decorative. */
+function RollerRod() {
+  return (
+    <div aria-hidden="true" className="relative z-10 -mx-4 h-6 xl:-mx-8">
+      <span className="absolute inset-x-0 top-1/2 h-5 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised" />
+      <span className="absolute -left-2.5 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised" />
+      <span className="absolute -right-2.5 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised" />
+    </div>
+  );
+}
+
+/* The volumen: parchment sheet between two rods. The sheet unrolls
+   top-to-bottom (clip-path reveal) the first time it scrolls into view;
+   prefers-reduced-motion shows it flat. */
+function ScrollSheet({ children }: { children: React.ReactNode }) {
+  const [ref, inView] = useInView<HTMLDivElement>();
+  const reduced = useReducedMotion();
+  const unrolled = inView || reduced;
+  return (
+    <div ref={ref}>
+      <RollerRod />
+      <div
+        className="parchment-bg shadow-raised border-x border-ink/15 transition-[clip-path] duration-[1400ms] ease-out motion-reduce:transition-none"
+        style={{ clipPath: unrolled ? "inset(0 0 0% 0)" : "inset(0 0 99% 0)" }}
+      >
+        {children}
+      </div>
+      <RollerRod />
+    </div>
   );
 }
 
@@ -507,31 +542,23 @@ export default function Orders() {
           <SpqrRule />
         </div>
 
-        {/* TABVLA COMPARATIONIS — carved-stone comparison tablet.
+        {/* TABVLA COMPARATIONIS — an imperial edict on a parchment volumen:
+            the sheet hangs between two wooden roller rods and unrolls
+            (clip-path reveal) as it scrolls into view. data-theme="light"
+            flips the semantic tokens so ink/sepia replace the dark golds.
             border-separate (not collapse): Chromium paints collapsed
             borders of a sticky thead in the wrong place, which showed
             as an empty floating band. Groups are presentational; the
             rows still come only from COMPARISON. */}
-        <div className="mt-16 hidden md:block">
-          <div className="relative border border-gold/50 bg-charcoal/40 p-2 shadow-raised">
-            {/* corner rosettes */}
-            {["-top-1.5 -left-1.5", "-top-1.5 -right-1.5", "-bottom-1.5 -left-1.5", "-bottom-1.5 -right-1.5"].map(
-              (pos) => (
-                <span
-                  key={pos}
-                  aria-hidden="true"
-                  className={`absolute ${pos} h-3 w-3 bg-gold rotate-45`}
-                />
-              )
-            )}
-            <div className="border border-stone/40">
+        <div className="mt-16 hidden md:block" data-theme="light">
+          <ScrollSheet>
               {/* title cartouche */}
-              <div className="flex items-center gap-4 border-b border-stone/40 px-8 py-5">
-                <div aria-hidden="true" className="meander-strip flex-1 opacity-40" />
-                <p className="font-mono text-xs uppercase tracking-[0.35em] text-gold whitespace-nowrap">
+              <div className="flex items-center gap-4 border-b border-ink/20 px-8 py-5 text-ink">
+                <div aria-hidden="true" className="meander-strip flex-1 opacity-30" />
+                <p className="font-mono text-xs uppercase tracking-[0.35em] text-terra-deep whitespace-nowrap">
                   Tabula Comparationis
                 </p>
-                <div aria-hidden="true" className="meander-strip flex-1 opacity-40" />
+                <div aria-hidden="true" className="meander-strip flex-1 opacity-30" />
               </div>
 
               <table className="w-full text-sm border-separate [border-spacing:0]">
@@ -542,7 +569,7 @@ export default function Orders() {
                   <tr>
                     <th
                       scope="col"
-                      className="bg-ink text-left py-4 px-8 font-mono text-[11px] uppercase tracking-[0.25em] text-travertine border-b border-stone/40"
+                      className="bg-sand text-left py-4 px-8 font-mono text-[11px] uppercase tracking-[0.25em] text-ink border-b border-ink/30"
                     >
                       Capability
                     </th>
@@ -551,14 +578,14 @@ export default function Orders() {
                         key={p.id}
                         scope="col"
                         className={cn(
-                          "bg-ink py-4 px-5 text-center border-b border-stone/40",
-                          p.featured ? "border-x border-gold/40" : ""
+                          "bg-sand py-4 px-5 text-center border-b border-ink/30",
+                          p.featured ? "border-x border-terra-deep/40" : ""
                         )}
                       >
                         <span className="sr-only">{p.name}</span>
                         <span aria-hidden="true" className="flex flex-col items-center gap-1.5">
-                          <span className="font-display text-xl text-bone">{p.name}</span>
-                          <span className="font-mono text-[9px] tracking-[0.3em] text-gold">
+                          <span className="font-display text-xl text-ink">{p.name}</span>
+                          <span className="font-mono text-[9px] tracking-[0.3em] text-terra-deep">
                             {LATIN_SUBTITLE[p.id]}
                           </span>
                         </span>
@@ -574,7 +601,7 @@ export default function Orders() {
                         <th
                           scope="colgroup"
                           colSpan={4}
-                          className="pt-6 pb-2 px-8 text-left font-mono text-[10px] uppercase tracking-[0.3em] text-gold/80"
+                          className="pt-6 pb-2 px-8 text-left font-mono text-[10px] uppercase tracking-[0.3em] text-terra-deep"
                         >
                           {group}
                         </th>
@@ -582,11 +609,11 @@ export default function Orders() {
                       {TABLE.filter((r) => caps.includes(r.capability)).map((row) => (
                         <tr
                           key={row.capability}
-                          className="group transition-colors hover:bg-gold/5"
+                          className="group transition-colors hover:bg-oxidized/10"
                         >
                           <th
                             scope="row"
-                            className="text-left py-3.5 px-8 font-sans text-travertine group-hover:text-bone border-b border-stone/20 transition-colors"
+                            className="text-left py-3.5 px-8 font-sans text-ink group-hover:text-terra-deep border-b border-ink/20 transition-colors"
                           >
                             {row.capability}
                           </th>
@@ -594,9 +621,9 @@ export default function Orders() {
                             <td
                               key={tier}
                               className={cn(
-                                "py-3.5 px-5 text-center text-bone border-b border-stone/20",
+                                "py-3.5 px-5 text-center text-ink border-b border-ink/20",
                                 tier === "senator" &&
-                                  "bg-oxidized/10 border-x border-gold/30 group-hover:bg-oxidized/15 transition-colors"
+                                  "bg-oxidized/10 border-x border-terra-deep/40 group-hover:bg-oxidized/15 transition-colors"
                               )}
                             >
                               <CellValue value={row[tier]} />
@@ -608,8 +635,7 @@ export default function Orders() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
+          </ScrollSheet>
         </div>
         <div className="mt-12 md:hidden">
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-travertine mb-4">
