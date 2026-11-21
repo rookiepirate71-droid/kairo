@@ -28,7 +28,8 @@ precision highp float;
 uniform vec2  uRes;        // canvas px
 uniform float uTime;
 uniform float uProgress;   // 0..1 reveal
-uniform vec2  uOrigin;     // 0..1
+uniform vec2  uOrigin;     // 0..1, top-down (DOM convention)
+uniform vec2  uMouse;      // 0..1, top-down (DOM convention)
 uniform vec3  uStoneA;
 uniform vec3  uStoneB;
 uniform vec3  uVein;
@@ -89,7 +90,8 @@ void main() {
   vec2 p = uv * vec2(uRes.x / uRes.y, 1.0);
 
   // ---- reveal front ----
-  vec2 o = uOrigin * vec2(uRes.x / uRes.y, 1.0);
+  // origin/mouse arrive top-down from DOM events; uv space is bottom-up
+  vec2 o = vec2(uOrigin.x, 1.0 - uOrigin.y) * vec2(uRes.x / uRes.y, 1.0);
   float aspectDiag = length(vec2(uRes.x / uRes.y, 1.0));
   float wobble = sin(3.14159 * uProgress);           // 0 at both ends
   float dist = distance(p, o);
@@ -106,30 +108,38 @@ void main() {
     float body = fbm(w);
     float vein = ridged(w * 1.6 + 3.7);
     vein = pow(clamp(vein, 0.0, 1.0), 6.0);
+    // fine secondary veining band: sparse hairline veins over the coarse ones
+    float veinFine = pow(clamp(ridged(w * 3.1 + 11.3), 0.0, 1.0), 14.0);
     marble = mix(uStoneA, uStoneB, smoothstep(0.35, 0.75, body));
-    marble = mix(marble, uVein, vein * 0.55);
+    marble = mix(marble, uVein, clamp(vein * 0.55 + veinFine * 0.35, 0.0, 1.0));
     if (uStrata > 0.5) {
       // sinusoidal strata for the citizen tier
       float band = 0.5 + 0.5 * sin(w.y * 24.0 + 2.0 * fbm(w * 0.7));
       marble *= 0.92 + 0.08 * band;
     }
-    // cursor sheen
-    marble += uSheen * 0.15 * smoothstep(0.35, 0.0, distance(uv, uOrigin));
+    // continuous cursor sheen: soft spotlight that tracks the pointer
+    // (aspect-corrected; demo parity with its uM/uMA spotlight)
+    vec2 dm = uv - vec2(uMouse.x, 1.0 - uMouse.y);
+    dm.x *= uRes.x / uRes.y;
+    marble += uSheen * 0.4 * exp(-dot(dm, dm) * 9.0);
   }
 
   // ---- edge fx: refraction, shadow, highlight, gold leaf, mist ----
-  float ripple = wobble * ${REVEAL.rippleAmp} * sin(front * 90.0);
-  vec2 textUv = uv + ripple * dir * step(0.0, front) * 0.5; // only ahead of front? no: ripples trail behind
-  textUv = uv + ripple * dir * inside * 0.5;                // trailing behind the front
+  // entrance/exit ease: no edge fx pops at progress 0 or 1
+  float pres = smoothstep(0.0, 0.04, uProgress) * (1.0 - smoothstep(0.9, 1.0, uProgress));
+  // refraction ripple, decaying behind the front instead of crossing the card
+  float ripple = wobble * ${REVEAL.rippleAmp} * sin(front * 70.0 - uTime * 2.0)
+               * exp(-abs(front) * 10.0) * pres;
+  vec2 textUv = uv + ripple * dir * inside * 0.5; // trailing behind the front
   textUv = clamp(textUv, 0.0, 1.0);
 
-  float shadow = smoothstep(0.0, 0.05, front);  // dark shadow ahead of front
-  float highlight = 1.0 - smoothstep(-0.03, 0.0, front); // bright just behind
-  float leaf = 1.0 - smoothstep(0.0, ${REVEAL.leafWidth}, abs(front));
+  float shadow = pres * smoothstep(0.0, 0.05, front);  // dark shadow ahead of front
+  float highlight = pres * (1.0 - smoothstep(-0.03, 0.0, front)); // bright just behind
+  float leaf = pres * (1.0 - smoothstep(0.0, ${REVEAL.leafWidth}, abs(front)));
   // bayer 4x4 dithered mist band ahead of the front, gold
   ivec2 px = ivec2(frag) % 4;
   float bayer = uDither[px.y * 4 + px.x];
-  float mist = step(bayer, 0.5) * smoothstep(0.0, 0.09, front) * (1.0 - smoothstep(0.09, 0.14, front));
+  float mist = pres * step(bayer, 0.5) * smoothstep(0.0, 0.09, front) * (1.0 - smoothstep(0.09, 0.14, front));
 
   // ---- text layers ----
   vec4 textBase = texture(uTextBase, textUv);
@@ -265,6 +275,7 @@ export default function TierCanvas({
         res: U("uRes"), time: U("uTime"), prog: U("uProgress"), origin: U("uOrigin"),
         a: U("uStoneA"), b: U("uStoneB"), vein: U("uVein"), strata: U("uStrata"),
         sheen: U("uSheen"), dither: U("uDither[0]"), tb: U("uTextBase"), tt: U("uTextTheme"),
+        mouse: U("uMouse"),
       };
 
       const hex = (h: string): [number, number, number] => {
@@ -308,6 +319,17 @@ export default function TierCanvas({
       gl!.activeTexture(gl!.TEXTURE1);
       gl!.bindTexture(gl!.TEXTURE_2D, texTheme);
 
+      // continuous cursor position over the parent card, top-down like origin
+      const mouse = { x: originRef.current?.x ?? 0.5, y: originRef.current?.y ?? 0.5 };
+      const card = canvas.parentElement;
+      const onMove = (e: PointerEvent): void => {
+        const r = canvas.getBoundingClientRect();
+        if (r.height === 0 || r.width === 0) return;
+        mouse.x = (e.clientX - r.left) / r.width;
+        mouse.y = (e.clientY - r.top) / r.height;
+      };
+      card?.addEventListener("pointermove", onMove, { passive: true });
+
       let raf = 0;
       let last = 0;
       let visible = true;
@@ -326,7 +348,8 @@ export default function TierCanvas({
         if (Math.abs(target - progressRef.current) < 0.001 && !active) {
           progressRef.current = 0;
           // fully collapsed: stop the loop until the next activation
-          raf = 0; cancelAnimationFrame(raf);
+          cancelAnimationFrame(raf);
+          raf = 0;
           return;
         }
         if (!visible) return; // offscreen: skip the draw
@@ -335,6 +358,7 @@ export default function TierCanvas({
         gl!.uniform1f(loc.time, now / 1000);
         gl!.uniform1f(loc.prog, progressRef.current);
         gl!.uniform2f(loc.origin, originRef.current?.x ?? 0.5, originRef.current?.y ?? 0.5);
+        gl!.uniform2f(loc.mouse, mouse.x, mouse.y);
         gl!.drawArrays(gl!.TRIANGLES, 0, 3);
       };
       const start = (): void => {
@@ -353,6 +377,7 @@ export default function TierCanvas({
         if (raf) cancelAnimationFrame(raf);
         io.disconnect();
         canvas.removeEventListener("webglcontextlost", onLost);
+        card?.removeEventListener("pointermove", onMove);
         gl!.deleteTexture(texBase);
         gl!.deleteTexture(texTheme);
         gl!.deleteProgram(program);

@@ -270,3 +270,59 @@ from ITERATION.md history instead.)
   (hover a card, then tab through: flood from pointer vs near-edge).
 - The hydration attribute-mismatch console warning (pre-existing since
   pass 1) still flaps; page is interactive whenever it appears.
+
+# Iteration — hotfix: shader parity with reference demo
+
+Date: 2026-11-21 · Branch pass/orders-liquid.
+Work order: user supplied `pricing_liquid_marble_reveal.html` (a saved
+single-page demo of the same effect) and approved importing its better
+details: "yes import and use it".
+
+## Changed
+
+- `src/components/webgl/TierCanvas.tsx`, four fragment-shader ports from
+  the reference demo:
+  - Decayed refraction: ripple is now
+    `sin(front*70 − uT*2) * exp(−|front|*10) * wobble` — the wave dies
+    behind the front instead of crossing the whole card.
+  - `pres` entrance/exit ease
+    (`smoothstep(0,.04,p)·(1−smoothstep(.9,1,p))`) multiplied into every
+    edge fx (shadow, highlight, leaf, mist, ripple), so nothing pops at
+    progress 0 or 1.
+  - Continuous cursor sheen: new `uMouse` uniform updated from a passive
+    `pointermove` listener on the parent card; spotlight is
+    `uSheen·0.4·exp(−d²·9)`, aspect-corrected (was a static sheen sampled
+    at the flood origin).
+  - Fine secondary veining band `pow(ridged(w*3.1+11.3), 14)` mixed at
+    0.35 over the coarse band, clamped so the sum never exceeds 1.
+- Origin/mouse y-flip fix found while porting: DOM events give top-down
+  fractions but GL uv is bottom-up, so the flood used to start from the
+  vertically mirrored point. Both are flipped once in the shader
+  (`vec2(x, 1−y)`); DOM-side convention unchanged.
+- rAF stop-order fix: `raf = 0; cancelAnimationFrame(raf)` cancelled
+  frame 0 and let the loop keep self-scheduling forever after collapse;
+  now cancels the real id first.
+
+## Not adopted from the demo
+
+- Opaque canvas with DOM text composited from textures only — ours stays
+  a transparent overlay over live, selectable DOM text (a11y/SEO).
+- Hardcoded tier hexes — ours read the site's token system via tiers.ts.
+- Time-flickering white sparkle at the front edge — left out as scope.
+
+## Verified
+
+- `pnpm exec tsc --noEmit` → clean; `pnpm exec vitest run` → 17 passed.
+- `pnpm exec next build` → ✓ compiled, / and /explore prerendered
+  (first attempt hit the stale-`.next` `no direct app page entry found
+  for /explore` invariant and the `./871.js` dev-cache clash; rm -rf
+  .next + fresh dev start cleared both — same failure mode as the
+  19:31 UTC hotfix).
+- Browser (preview host): 1024px — goto /, assert IMPERATOR/SENATOR,
+  click Imperator card (focus reveal), navigate /explore, assert The
+  Library; 390px — goto /, assert SENATOR/IMPERATOR, click Senator card.
+  All steps passed, zero console errors, zero network failures, no
+  horizontal overflow. The intermittent "React did not hydrate" harness
+  warning flapped again on both runs; allowedDevOrigins already covers
+  *.vercel.run and every step still passed (matches the flap documented
+  since pass 1).
