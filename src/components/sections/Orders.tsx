@@ -417,7 +417,7 @@ function CellValue({ value }: { value: string }) {
    turned end-knobs. Decorative. */
 function RollerRod() {
   return (
-    <div aria-hidden="true" className="relative z-10 -mx-4 h-6 xl:-mx-8">
+    <div aria-hidden="true" className="relative z-10 mx-6 h-6 xl:mx-10">
       <span className="absolute inset-x-0 top-1/2 h-5 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised" />
       <span className="absolute -left-2.5 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised" />
       <span className="absolute -right-2.5 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised" />
