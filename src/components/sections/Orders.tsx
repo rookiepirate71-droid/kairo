@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useId, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { PLANS, COMPARISON, numeralFor } from "@/lib/constants";
 import { Button } from "@/components/ui/Button";
 import Accordion from "@/components/ui/Accordion";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
+import TierCanvas from "@/components/webgl/TierCanvas";
 import { cn } from "@/lib/utils";
 
 /* Cards place their six blocks on a shared 6-row grid
@@ -159,6 +160,208 @@ const LATIN_SUBTITLE: Record<string, string> = {
   emperor: "IMPERATOR",
 };
 
+/* One tier card: DOM content plus (on WebGL2 devices) the liquid-marble
+   reveal canvas. State per card: hovered (pointer), focused (keyboard),
+   tapped (touch). The DOM text is the accessible, selectable, SEO-visible
+   truth; the canvas paints over it only while the flood covers the card. */
+function RevealCard({
+  plan,
+  hero,
+  price,
+  annual,
+}: {
+  plan: (typeof PLANS)[number];
+  hero: boolean;
+  price: number | null;
+  annual: boolean;
+}) {
+  const [state, setState] = useState<"idle" | "active">("idle");
+  const [webgl2, setWebgl2] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const originRef = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 });
+  const sourceRef = useRef<"pointer" | "focus" | "tap">("pointer");
+  void sourceRef;
+
+  // probe WebGL2 once
+  useEffect(() => {
+    const probe = document.createElement("canvas").getContext("webgl2");
+    setWebgl2(probe !== null);
+    probe?.getExtension("WEBGL_lose_context")?.loseContext();
+  }, []);
+
+  const setOriginFromEvent = (e: React.PointerEvent | React.FocusEvent) => {
+    const el = cardRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if ("clientX" in e && typeof e.clientX === "number" && e.clientX >= 0) {
+      const pe = e as React.PointerEvent;
+      if (pe.pointerType === "touch") sourceRef.current = "tap";
+      else sourceRef.current = "pointer";
+      originRef.current = {
+        x: (pe.clientX - r.left) / r.width,
+        y: (pe.clientY - r.top) / r.height,
+      };
+    } else {
+      sourceRef.current = "focus";
+      originRef.current = { x: 0.5, y: 0.85 };
+    }
+  };
+
+  const active = state === "active";
+  const canvasLines = [
+    { text: `${LATIN_SUBTITLE[plan.id]}`, kind: "eyebrow" as const, y: 40 },
+    { text: plan.name, kind: "name" as const, y: 80 },
+    { text: plan.blurb, kind: "blurb" as const, y: 110 },
+    {
+      text: price !== null ? `$${price} / mo` : "By rite",
+      kind: "price" as const,
+      y: 160,
+    },
+    ...(ROMAN_FEATURES[plan.id] ?? []).map((f, i) => ({
+      text: f,
+      kind: "feature" as const,
+      y: 200 + i * 22,
+    })),
+  ];
+
+  return (
+    <div
+      ref={cardRef}
+      tabIndex={0}
+      data-theme={hero ? "light" : undefined}
+      aria-label={`${plan.name} plan: ${plan.blurb}`}
+      onPointerEnter={(e) => {
+        setOriginFromEvent(e);
+        setState("active");
+      }}
+      onPointerLeave={() => {
+        if (sourceRef.current === "tap") return; // touch: ignore leave
+        setState("idle");
+      }}
+      onFocus={(e) => {
+        setOriginFromEvent(e);
+        setState("active");
+      }}
+      onBlur={() => setState("idle")}
+      onClick={(e) => {
+        // touch tap: origin from tap, reveal until blur
+        const el = cardRef.current;
+        if (!el || e.clientX === 0) return;
+        const r = el.getBoundingClientRect();
+        sourceRef.current = "tap";
+        originRef.current = {
+          x: (e.clientX - r.left) / r.width,
+          y: (e.clientY - r.top) / r.height,
+        };
+        setState("active");
+      }}
+      className={cn(
+        "group relative grid grid-rows-[auto_auto_auto_auto_1fr_auto] grid-cols-1 rounded-sm p-8 pb-10 outline-none transition-transform duration-300",
+        "hover:-translate-y-1 hover:shadow-[0_0_0_1px_var(--color-gold)]",
+        "focus-visible:-translate-y-1 focus-visible:shadow-[0_0_0_1px_var(--color-gold)]",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)] focus-visible:outline-offset-2",
+        hero
+          ? "bg-sand text-ink shadow-raised md:-translate-y-2 md:hover:-translate-y-3"
+          : "border border-stone/40 bg-charcoal/60"
+      )}
+      style={
+        hero
+          ? ({
+              "--focus-ring": "var(--color-purple)",
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
+      {/* rotating conic gold border on the hero card; static hairline under
+          reduced motion (see globals.css @property --angle) */}
+      {hero && <span aria-hidden="true" className="conic-border" />}
+
+      {/* liquid-marble reveal (skipped entirely without WebGL2 / reduced
+          motion — the DOM card below is the fallback and the truth) */}
+      {webgl2 && (
+        <TierCanvas
+          tier={plan.id as "citizen" | "senator" | "emperor"}
+          active={active}
+          originRef={originRef}
+          lines={canvasLines}
+          width={0}
+          height={0}
+        />
+      )}
+
+      {/* pixel-art column capital + latin subtitle + meander */}
+      <div className="sr-only">{CAPITAL_ALT[plan.id]}</div>
+      <div className="pt-1">
+        <Capital tier={plan.id as "citizen" | "senator" | "emperor"} />
+        <p className="mt-2 text-center font-mono text-[11px] tracking-[0.3em] text-(--on-surface-muted)">
+          {LATIN_SUBTITLE[plan.id]}
+        </p>
+        <div aria-hidden="true" className="meander-strip mt-3 opacity-30" />
+      </div>
+
+      <h3 className="mt-4 text-center font-display text-3xl text-(--on-surface)">
+        {plan.name}
+      </h3>
+      <p className="mt-2 min-h-[2.5em] text-center text-sm text-(--on-surface-muted)">
+        {plan.blurb}
+      </p>
+      <p
+        className="mt-6 text-center font-display text-5xl text-(--on-surface) [font-variant-numeric:lining-nums_tabular-nums]"
+      >
+        <Coin />
+        {price !== null ? (
+          <>
+            <AnimatedCounter
+              value={price}
+              prefix="$"
+              className="tabular-nums"
+              duration={0.3}
+            />
+            <span className="text-base font-sans text-(--on-surface)"> / mo</span>
+            {annual && (
+              <span className="mt-1 block font-sans text-xs text-(--on-surface-muted)">
+                billed annually
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="italic">By rite</span>
+        )}
+      </p>
+
+      <ul className="mt-6 space-y-3 flex-1">
+        {(ROMAN_FEATURES[plan.id] ?? []).map((f) => (
+          <li key={f} className="flex items-start gap-2 text-sm text-(--on-surface-muted)">
+            <span className="mt-0.5 text-(--accent)" aria-hidden="true">
+              ✦
+            </span>
+            {f}
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-8">
+        <Button
+          variant={hero ? "primary" : "secondary"}
+          className={cn(
+            "w-full min-h-[48px] rounded-full",
+            "transition-transform duration-200",
+            "hover:scale-[1.03] motion-reduce:transform-none"
+          )}
+        >
+          {plan.cta}
+        </Button>
+      </div>
+
+      {hero && (
+        <div className="mt-4 flex justify-center">
+          <LaurelBadge />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Column capital motif per tier, for the sr-only equivalent. */
 const CAPITAL_ALT: Record<string, string> = {
   citizen: "Tuscan column capital (plain)",
@@ -294,105 +497,23 @@ export default function Orders() {
         </div>
 
         {/* Cards: one grid, rows pinned by index. The lifted card translates
-            itself, not its row — content stays on the shared baselines. */}
+            itself, not its row — content stays on the shared baselines.
+            On WebGL2 devices each card carries a TierCanvas that floods the
+            card with liquid marble from the pointer entry point on
+            hover/focus/tap; without WebGL2 or with reduced motion the plain
+            DOM card with the CSS theme swap is the fallback (no canvas). */}
         <div className="grid gap-6 md:grid-cols-3 items-stretch md:[grid-template-rows:1fr]">
           {PLANS.map((plan) => {
             const price = annual ? plan.annual : plan.monthly;
-            const hero = plan.featured;
+            const hero = plan.featured === true;
             return (
-              <div
+              <RevealCard
                 key={plan.id}
-                data-theme={hero ? "light" : undefined}
-                className={cn(
-                  "relative grid grid-rows-[auto_auto_auto_auto_1fr_auto] grid-cols-1 rounded-sm p-8 pb-10 transition-transform duration-300",
-                  "hover:-translate-y-1 hover:shadow-[0_0_0_1px_var(--color-gold)]",
-                  "focus-within:-translate-y-1 focus-within:shadow-[0_0_0_1px_var(--color-gold)]",
-                  hero
-                    ? "bg-sand text-ink shadow-raised md:-translate-y-2 md:hover:-translate-y-3"
-                    : "border border-stone/40 bg-charcoal/60"
-                )}
-                style={
-                  hero
-                    ? ({
-                        "--focus-ring": "var(--color-purple)",
-                      } as React.CSSProperties)
-                    : undefined
-                }
-              >
-                {/* rotating conic gold border on the hero card; static hairline
-                    under reduced motion (see globals.css @property --angle) */}
-                {hero && <span aria-hidden="true" className="conic-border" />}
-
-                {/* pixel-art column capital + latin subtitle + meander */}
-                <div className="sr-only">{CAPITAL_ALT[plan.id]}</div>
-                <div className="pt-1">
-                  <Capital tier={plan.id as "citizen" | "senator" | "emperor"} />
-                  <p className="mt-2 text-center font-mono text-[11px] tracking-[0.3em] text-(--on-surface-muted)">
-                    {LATIN_SUBTITLE[plan.id]}
-                  </p>
-                  <div aria-hidden="true" className="meander-strip mt-3 opacity-30" />
-                </div>
-
-                <h3 className="mt-4 text-center font-display text-3xl text-(--on-surface)">
-                  {plan.name}
-                </h3>
-                <p className="mt-2 min-h-[2.5em] text-center text-sm text-(--on-surface-muted)">
-                  {plan.blurb}
-                </p>
-                <p
-                  className="mt-6 text-center font-display text-5xl text-(--on-surface) [font-variant-numeric:lining-nums_tabular-nums]"
-                >
-                  <Coin />
-                  {price !== null ? (
-                    <>
-                      <AnimatedCounter
-                        value={price}
-                        prefix="$"
-                        className="tabular-nums"
-                        duration={0.3}
-                      />
-                      <span className="text-base font-sans text-(--on-surface)"> / mo</span>
-                      {annual && (
-                        <span className="mt-1 block font-sans text-xs text-(--on-surface-muted)">
-                          billed annually
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="italic">By rite</span>
-                  )}
-                </p>
-
-                <ul className="mt-6 space-y-3 flex-1">
-                  {(ROMAN_FEATURES[plan.id] ?? []).map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-(--on-surface-muted)">
-                      <span className="mt-0.5 text-(--accent)" aria-hidden="true">
-                        ✦
-                      </span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-8">
-                  <Button
-                    variant={hero ? "primary" : "secondary"}
-                    className={cn(
-                      "w-full min-h-[48px] rounded-full",
-                      "transition-transform duration-200",
-                      "hover:scale-[1.03] motion-reduce:transform-none"
-                    )}
-                  >
-                    {plan.cta}
-                  </Button>
-                </div>
-
-                {hero && (
-                  <div className="mt-4 flex justify-center">
-                    <LaurelBadge />
-                  </div>
-                )}
-              </div>
+                plan={plan}
+                hero={hero}
+                price={price}
+                annual={annual}
+              />
             );
           })}
         </div>
