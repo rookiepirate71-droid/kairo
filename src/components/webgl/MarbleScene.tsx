@@ -68,10 +68,30 @@ const FRAG = /* glsl */ `
     return v;
   }
 
+  // ridged variant for kintsugi vein lines (port from TierCanvas)
+  float ridged(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 4; i++) {
+      v += a * (1.0 - abs(noise(p) * 2.0 - 1.0));
+      p *= 2.11;
+      a *= 0.5;
+    }
+    return v;
+  }
+
+  // first-order flow warp: the field advects itself over time, so the ascii
+  // glyphs and the lens marble both move like liquid instead of drifting
+  vec2 flow(vec2 p) {
+    vec2 q = vec2(fbm(p + vec2(0.0, uTime * 0.05)), fbm(p + vec2(5.2, uTime * 0.04)));
+    return p + 0.75 * vec2(fbm(p + 4.0 * q), fbm(p + 4.0 * q + 8.3));
+  }
+
   // marble vein field, 0..1, aspect-corrected. This is the image's luminance.
   float vein(vec2 uv) {
-    vec2 p = vec2(uv.x * uRes.x / uRes.y, uv.y) * 4.0 + uTime * 0.02;
-    return smoothstep(0.38, 0.66, fbm(p * 2.0 + fbm(p) * 2.0));
+    vec2 p = vec2(uv.x * uRes.x / uRes.y, uv.y) * 4.0;
+    p = flow(p);
+    return smoothstep(0.38, 0.66, fbm(p * 2.0));
   }
 
   void main() {
@@ -93,13 +113,24 @@ const FRAG = /* glsl */ `
     float g = texture2D(uAtlas, vec2((idx + inCell.x) / RAMP, inCell.y)).r;
     vec3 asciiCol = mix(uGround, uGold, g * (0.35 + 0.65 * d));
 
-    // true marble: only evaluated where the lens is visible
+    // true marble: only evaluated where the lens is visible. Same living-stone
+    // maths as the Orders tier cards: domain-warped body, kintsugi ridged
+    // veins, sparkle, and a cursor sheen tracking the smoothed pointer.
     vec3 marbleCol = uGround;
     if (ascii < 0.999) {
-      float v = vein(uv);
-      marbleCol = mix(uGround, uMarble, v);
+      vec2 pAsp2 = vec2(uRes.x / uRes.y, 1.0);
+      vec2 w = flow(uv * pAsp2 * 2.4);
+      float body = fbm(w);
+      float v = pow(clamp(ridged(w * 1.6 + 3.7), 0.0, 1.0), 6.0);
+      float vFine = pow(clamp(ridged(w * 3.1 + 11.3), 0.0, 1.0), 14.0);
+      marbleCol = mix(uGround, uMarble, smoothstep(0.35, 0.75, body));
+      marbleCol = mix(marbleCol, uGold, clamp(v * 0.55 + vFine * 0.35, 0.0, 1.0));
       float sparkle = step(0.985, hash(floor(frag / (2.0 * uDpr)) + floor(uTime * 2.0)));
-      marbleCol = mix(marbleCol, uGold, sparkle * v * 0.6);
+      marbleCol = mix(marbleCol, uGold, sparkle * body * 0.6);
+      // continuous cursor sheen (uMouse is already bottom-left origin here)
+      vec2 dm = uv - uMouse / uRes;
+      dm.x *= uRes.x / uRes.y;
+      marbleCol += 0.25 * exp(-dot(dm, dm) * 9.0);
     }
 
     vec3 col = mix(marbleCol, asciiCol, ascii);
