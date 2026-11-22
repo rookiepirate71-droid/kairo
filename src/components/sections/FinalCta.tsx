@@ -24,7 +24,7 @@ export default function FinalCta() {
   return (
     <section id="access" className="coffer-bg py-32 md:py-44">
       <div className="mx-auto max-w-2xl px-6 text-center">
-        <div className="pointer-events-none flex justify-center" aria-hidden="true">
+        <div className="flex justify-center" aria-hidden="true">
           <FluidOrb
             size={170}
             color="#b5532f"

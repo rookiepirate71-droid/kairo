@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { cn } from '@/lib/utils'
 
@@ -26,6 +27,7 @@ precision mediump float;
 uniform vec2 u_resolution;
 uniform float u_time;
 uniform vec3 u_color;
+uniform float u_energy; // 0..1, driven by the physics sim's speed
 
 // sin-free hash (Hoskins) — same constant as MarbleScene/TierCanvas, stable on mobile
 float hash(vec2 p) {
@@ -84,7 +86,7 @@ void main() {
 
   // ---- liquid silhouette: the radius itself breathes with the flow field ----
   float lobes = fbm(p * 3.0 + u_time * 0.14);
-  float ripple = 0.014 * sin(5.0 * ang - u_time * 0.9);
+  float ripple = (0.014 + 0.022 * u_energy) * sin(5.0 * ang - u_time * (0.9 + 2.2 * u_energy));
   float R = 0.46 + 0.05 * (lobes - 0.5) + ripple;
   float edge = R - r; // >0 inside
   float inside = smoothstep(0.0, 0.006, edge);
@@ -162,6 +164,17 @@ const FluidOrb = ({
   ...props
 }: FluidOrbProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // the roaming canvas is portaled to <body> while physics is active: an
+  // element fixed inside the root would actually be fixed to the root (the
+  // orb-float animation puts a transform on it) and could still widen the
+  // document; portaled to body it can never add scrollable overflow
+  const [floatHost, setFloatHost] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!reduce) setFloatHost(document.body)
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -197,6 +210,7 @@ const FluidOrb = ({
 
     const uResolution = gl.getUniformLocation(program, 'u_resolution')
     const uTime = gl.getUniformLocation(program, 'u_time')
+    const uEnergy = gl.getUniformLocation(program, 'u_energy')
     gl.uniform3f(gl.getUniformLocation(program, 'u_color'), ...hexToRgb(color))
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -208,28 +222,227 @@ const FluidOrb = ({
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const start = performance.now()
+
+    // ---- physics: the browser window is the environment ----
+    // the orb is a mass on a soft spring anchored at its layout spot;
+    // the cursor can grab it, shove it or throw it, and the viewport
+    // edges are walls it bounces off until the spring pulls it home
+    const radius = size / 2
+    const SPRING = 14 // spring stiffness (s^-2) — soft, so the return is slow
+    const DAMP = 2.6 // spring damping — low enough for a gentle overshoot
+    const REST = 0.72 // wall restitution
+    const MAX_SPEED = 3000
+
+    let pos = { x: 0, y: 0 } // offset from the anchor, CSS px
+    let vel = { x: 0, y: 0 }
+    let energy = 0
+    let dragging = false
+    let grab = { x: 0, y: 0 }
+    let lastPtr = { x: 0, y: 0, t: performance.now() }
+    let ptrVel = { x: 0, y: 0 }
+    let prev = start
     let raf = 0
 
-    const render = (now: number) => {
-      gl.uniform1f(uTime, reduce ? 0 : (now - start) / 1000)
-      gl.drawArrays(gl.TRIANGLES, 0, 6)
-      if (!reduce) raf = requestAnimationFrame(render)
+    // the anchor is the untransformed root's centre; the CSS float bob on
+    // the root rides along, so the resting orb still breathes
+    const anchorCenter = () => {
+      const r = rootRef.current?.getBoundingClientRect()
+      return r
+        ? { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+        : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
     }
-    render(start)
+
+    const onDown = (e: PointerEvent) => {
+      const a = anchorCenter()
+      const cx = a.x + pos.x
+      const cy = a.y + pos.y
+      if (Math.hypot(e.clientX - cx, e.clientY - cy) > radius + 14) return
+      dragging = true
+      try {
+        canvas.setPointerCapture(e.pointerId)
+      } catch {}
+      grab = { x: cx - e.clientX, y: cy - e.clientY }
+      lastPtr = { x: e.clientX, y: e.clientY, t: performance.now() }
+      ptrVel = { x: 0, y: 0 }
+      canvas.style.cursor = 'grabbing'
+      e.preventDefault()
+    }
+
+    const onMove = (e: PointerEvent) => {
+      const now = performance.now()
+      const dt = Math.max((now - lastPtr.t) / 1000, 0.001)
+      const inst = {
+        x: (e.clientX - lastPtr.x) / dt,
+        y: (e.clientY - lastPtr.y) / dt,
+      }
+      ptrVel.x = ptrVel.x * 0.6 + inst.x * 0.4
+      ptrVel.y = ptrVel.y * 0.6 + inst.y * 0.4
+      lastPtr = { x: e.clientX, y: e.clientY, t: now }
+
+      if (dragging) return
+
+      // shove: a fast cursor crossing the orb transfers momentum
+      const a = anchorCenter()
+      const d = Math.hypot(e.clientX - (a.x + pos.x), e.clientY - (a.y + pos.y))
+      const reach = radius + 18
+      if (d < reach && Math.hypot(ptrVel.x, ptrVel.y) > 240) {
+        const f = Math.min(dt, 0.033) * 12 * (1 - d / reach)
+        vel.x += ptrVel.x * f
+        vel.y += ptrVel.y * f
+      }
+    }
+
+    const onUp = (e: PointerEvent) => {
+      if (!dragging) return
+      dragging = false
+      try {
+        canvas.releasePointerCapture(e.pointerId)
+      } catch {}
+      canvas.style.cursor = 'grab'
+    }
+
+    if (!reduce) {
+      // the roaming canvas is taken out of flow: a fixed element can never
+      // expand the document's scrollable area, whatever the physics does
+      canvas.style.position = 'fixed'
+      canvas.style.left = '0'
+      canvas.style.top = '0'
+      canvas.style.width = `${size}px`
+      canvas.style.height = `${size}px`
+      canvas.style.zIndex = '30'
+      canvas.style.cursor = 'grab'
+      canvas.style.touchAction = 'none'
+      canvas.addEventListener('pointerdown', onDown)
+      window.addEventListener('pointermove', onMove, { passive: true })
+      window.addEventListener('pointerup', onUp)
+      window.addEventListener('pointercancel', onUp)
+    }
+
+    const frame = (now: number) => {
+      const dt = Math.min((now - prev) / 1000, 0.032)
+      prev = now
+      const t = reduce ? 0 : (now - start) / 1000
+      const a = anchorCenter()
+
+      if (!reduce) {
+        // park while the orb's own section is off-screen: the browser window
+        // is the orb's environment only while the orb is on stage
+        const margin = size
+        const parked =
+          a.y < -margin || a.y > window.innerHeight + margin
+        if (parked) {
+          pos.x = 0
+          pos.y = 0
+          vel.x = 0
+          vel.y = 0
+          energy += (0 - energy) * Math.min(dt * 6, 1)
+        } else {
+          if (dragging) {
+            // the orb tracks the pointer directly; the velocity it keeps on
+            // release is smoothed from that motion, so throws feel weighted
+            const tx = lastPtr.x + grab.x - a.x
+            const ty = lastPtr.y + grab.y - a.y
+            const ivx = (tx - pos.x) / Math.max(dt, 0.008)
+            const ivy = (ty - pos.y) / Math.max(dt, 0.008)
+            vel.x = vel.x * 0.4 + ivx * 0.6
+            vel.y = vel.y * 0.4 + ivy * 0.6
+            pos.x = tx
+            pos.y = ty
+          } else {
+            // soft spring home
+            vel.x += (-SPRING * pos.x - DAMP * vel.x) * dt
+            vel.y += (-SPRING * pos.y - DAMP * vel.y) * dt
+            pos.x += vel.x * dt
+            pos.y += vel.y * dt
+          }
+
+          // window edges are walls; the wall margin accounts for the
+          // squash-and-stretch AABB so a speeding orb never spills the page
+          let cx = a.x + pos.x
+          let cy = a.y + pos.y
+          const rad = (Math.atan2(vel.y, vel.x) * Math.PI) / 180
+          const ca = Math.abs(Math.cos(rad))
+          const sa = Math.abs(Math.sin(rad))
+          const st = Math.min(Math.hypot(vel.x, vel.y) / 2600, 0.14)
+          const halfW = radius * ((1 + st) * ca + (1 - st * 0.7) * sa)
+          const halfH = radius * ((1 + st) * sa + (1 - st * 0.7) * ca)
+          const minX = halfW
+          const maxX = window.innerWidth - halfW
+          const minY = halfH
+          const maxY = window.innerHeight - halfH
+          if (cx < minX) {
+            cx = minX
+            vel.x = Math.abs(vel.x) * REST
+          } else if (cx > maxX) {
+            cx = maxX
+            vel.x = -Math.abs(vel.x) * REST
+          }
+          if (cy < minY) {
+            cy = minY
+            vel.y = Math.abs(vel.y) * REST
+          } else if (cy > maxY) {
+            cy = maxY
+            vel.y = -Math.abs(vel.y) * REST
+          }
+          pos.x = cx - a.x
+          pos.y = cy - a.y
+
+          const speed = Math.hypot(vel.x, vel.y)
+          if (speed > MAX_SPEED) {
+            vel.x *= MAX_SPEED / speed
+            vel.y *= MAX_SPEED / speed
+          }
+          energy += (Math.min(speed / 1400, 1) - energy) * Math.min(dt * 6, 1)
+
+          // squash & stretch along the direction of travel
+          const stretch = Math.min(speed / 2600, 0.14)
+          const deg = (Math.atan2(vel.y, vel.x) * 180) / Math.PI
+          canvas.style.transform =
+            `translate3d(${(cx - radius).toFixed(2)}px, ${(cy - radius).toFixed(2)}px, 0) ` +
+            `rotate(${deg.toFixed(2)}deg) scale(${(1 + stretch).toFixed(4)}, ${(1 - stretch * 0.7).toFixed(4)}) ` +
+            `rotate(${(-deg).toFixed(2)}deg)`
+          gl.uniform1f(uEnergy, energy)
+        }
+
+        if (parked) {
+          canvas.style.transform =
+            `translate3d(${(a.x - radius).toFixed(2)}px, ${(a.y - radius).toFixed(2)}px, 0)`
+          gl.uniform1f(uEnergy, energy)
+        }
+      }
+
+      gl.uniform1f(uTime, t)
+      gl.drawArrays(gl.TRIANGLES, 0, 6)
+      if (!reduce) raf = requestAnimationFrame(frame)
+    }
+    frame(start)
 
     return () => {
       cancelAnimationFrame(raf)
+      canvas.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      canvas.style.position = ''
+      canvas.style.left = ''
+      canvas.style.top = ''
+      canvas.style.width = ''
+      canvas.style.height = ''
+      canvas.style.zIndex = ''
+      canvas.style.transform = ''
+      canvas.style.cursor = ''
       gl.deleteProgram(program)
       gl.deleteShader(vert)
       gl.deleteShader(frag)
       gl.deleteBuffer(buffer)
     }
-  }, [size, color])
+  }, [size, color, floatHost])
 
   return (
     <div
+      ref={rootRef}
       data-slot="fluid-orb"
-      className={cn('relative overflow-hidden rounded-full', className)}
+      className={cn('relative rounded-full', className)}
       style={{
         width: size,
         height: size,
@@ -237,7 +450,11 @@ const FluidOrb = ({
       }}
       {...props}
     >
-      <canvas ref={canvasRef} className="h-full w-full" />
+      {floatHost ? (
+        createPortal(<canvas ref={canvasRef} className="h-full w-full" />, floatHost)
+      ) : (
+        <canvas ref={canvasRef} className="h-full w-full" />
+      )}
     </div>
   )
 }
