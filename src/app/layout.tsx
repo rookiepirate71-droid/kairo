@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter, Space_Mono } from "next/font/google";
-import { SITE_URL, appJsonLd } from "@/lib/seo";
+import { SITE_URL, siteUrl, appJsonLd } from "@/lib/seo";
 import "./globals.css";
 
 const display = Cormorant_Garamond({
@@ -28,34 +28,34 @@ const mono = Space_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Oraculum — The AI Command Center for Company Data",
+    default: "Oraculum — Consult the oracle without leaving your shell",
     template: "%s — Oraculum",
   },
   description:
-    "Turn company data into decisions: governed metrics with lineage, anomaly alerts, and plain-language analysis on one surface.",
+    "Turn your command line into a place of answers. Pose a question in plain language or Latin-flavored syntax and receive prophecy, precedent and a suggested next command.",
   keywords: [
     "oraculum",
-    "business intelligence",
-    "analytics platform",
-    "data lineage",
-    "AI analytics",
-    "dashboards",
+    "terminal oracle",
+    "command line",
+    "CLI assistant",
+    "augury",
+    "developer tools",
   ],
-  alternates: { canonical: `${SITE_URL}/` },
+  alternates: { canonical: siteUrl("/") },
   openGraph: {
-    title: "Oraculum — The AI Command Center for Company Data",
+    title: "Oraculum — Consult the oracle without leaving your shell",
     description:
-      "Governed metrics with lineage, anomaly alerts, and plain-language analysis on one surface.",
+      "Pose a question in plain language or Latin-flavored syntax and receive prophecy, precedent and a suggested next command.",
     type: "website",
     locale: "en_US",
     siteName: "Oraculum",
-    url: SITE_URL,
+    url: siteUrl("/"),
   },
   twitter: {
     card: "summary_large_image",
-    title: "Oraculum — The AI Command Center for Company Data",
+    title: "Oraculum — Consult the oracle without leaving your shell",
     description:
-      "Governed metrics with lineage, anomaly alerts, and plain-language analysis on one surface.",
+      "Pose a question in plain language or Latin-flavored syntax and receive prophecy, precedent and a suggested next command.",
   },
 };
 

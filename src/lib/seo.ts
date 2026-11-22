@@ -1,16 +1,25 @@
 import type { Metadata } from "next";
-import { asset } from "@/lib/asset";
+import { asset, BASE as BASE_PATH } from "@/lib/asset";
 
-/** Base URL: set NEXT_PUBLIC_SITE_URL in production; fallback keeps dev sane. */
-export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://oraculum.example.com";
+/**
+ * Origin only (no base path). CI sets NEXT_PUBLIC_SITE_URL to the real
+ * deploy origin (e.g. the GitHub Pages origin); the localhost fallback is
+ * for `next dev` and never reaches production.
+ */
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+/** Absolute URL for a site path, including the GitHub Pages base path. */
+export function siteUrl(path = "/"): string {
+  return `${SITE_URL}${BASE_PATH}${path.startsWith("/") ? path : `/${path}`}`;
+}
 
 export function seoFor(
   title: string,
   description: string,
   image = "/generated/tessera-mosaic.jpg",
+  path = "/",
 ): Metadata {
-  const url = `${SITE_URL}/`;
+  const url = siteUrl(path);
   const ogImage = asset(image);
   return {
     title,
@@ -40,22 +49,17 @@ export function appJsonLd() {
       {
         "@type": "Organization",
         name: "Oraculum",
-        url: SITE_URL,
-        logo: `${SITE_URL}/opengraph-image`,
-        sameAs: [],
+        url: siteUrl("/"),
+        logo: asset("/opengraph-image"),
       },
       {
         "@type": "SoftwareApplication",
         name: "Oraculum",
-        applicationCategory: "BusinessApplication",
+        applicationCategory: "DeveloperApplication",
         operatingSystem: "Web",
         description:
-          "The AI command center that turns company data into decisions — governed metrics, lineage, anomaly alerts and plain-language analysis.",
-        offers: {
-          "@type": "Offer",
-          price: "400",
-          priceCurrency: "USD",
-        },
+          "A terminal oracle: pose a question in plain language and receive prophecy, precedent and a suggested next command.",
+        url: siteUrl("/"),
       },
     ],
   };

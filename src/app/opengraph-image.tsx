@@ -4,7 +4,7 @@ export const dynamic = "force-static";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Oraculum — The AI Command Center for Company Data";
+export const alt = "Oraculum — Consult the oracle without leaving your shell";
 
 export default function opengraphImage() {
   return new ImageResponse(
@@ -34,7 +34,8 @@ export default function opengraphImage() {
             color: "#a98a44",
           }}
         >
-          The AI command center for company data
+          Consult the oracle
+          without leaving your shell
         </div>
         <div
           style={{
@@ -45,7 +46,7 @@ export default function opengraphImage() {
             letterSpacing: 3,
           }}
         >
-          GOVERNED METRICS · LINEAGE · ALERTS · PLAIN-LANGUAGE ANALYSIS
+          PROPHECY · PRECEDENT · YOUR NEXT COMMAND
         </div>
       </div>
     ),

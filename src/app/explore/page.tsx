@@ -12,6 +12,7 @@ export const metadata: Metadata = {
     "Explore the Library of Oraculum",
     "Every build, pillar and rite in one gallery — seven tesserae, six engines, four rites. Browse the library, join an order, put it to work.",
     "/generated/tessera-mosaic.jpg",
+    "/explore/",
   ),
 };
 
