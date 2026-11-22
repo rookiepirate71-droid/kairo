@@ -427,19 +427,45 @@ function RollerRod() {
 
 /* The volumen: parchment sheet between two rods. The sheet unrolls
    top-to-bottom (clip-path reveal) the first time it scrolls into view;
-   prefers-reduced-motion shows it flat. */
+   prefers-reduced-motion shows it flat. The parchment paint lives on an
+   underlayer (.parchment-edge) so the deckle-edge turbulence distorts
+   the sheet — not the table text painted on top of it. */
 function ScrollSheet({ children }: { children: React.ReactNode }) {
   const [ref, inView] = useInView<HTMLDivElement>();
   const reduced = useReducedMotion();
   const unrolled = inView || reduced;
   return (
     <div ref={ref}>
+      <svg aria-hidden="true" width="0" height="0" className="absolute">
+        <defs>
+          <filter id="parchment-edge" x="-5%" y="-3%" width="110%" height="106%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.018 0.09"
+              numOctaves="5"
+              seed="7"
+              result="grain"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="grain"
+              scale="9"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </defs>
+      </svg>
       <RollerRod />
       <div
-        className="parchment-bg shadow-raised border-x border-ink/15 transition-[clip-path] duration-[1400ms] ease-out motion-reduce:transition-none"
+        className="relative transition-[clip-path] duration-[1400ms] ease-out motion-reduce:transition-none"
         style={{ clipPath: unrolled ? "inset(0 0 0% 0)" : "inset(0 0 99% 0)" }}
       >
-        {children}
+        <div
+          aria-hidden="true"
+          className="parchment-bg parchment-edge shadow-raised absolute -inset-y-1 inset-x-0"
+        />
+        <div className="relative">{children}</div>
       </div>
       <RollerRod />
     </div>
