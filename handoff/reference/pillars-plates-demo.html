@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oraculum: Pillars as specimen plates (reference demo)</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Inter:wght@400&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--serif:"Cormorant Garamond",Georgia,serif;--sans:"Inter",system-ui,sans-serif;--mono:"Space Mono",ui-monospace,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:#0d0c0a;color:#ede6d6;font-family:var(--sans);padding:32px 16px}
+main{max-width:1040px;margin:0 auto}
+h1{font-family:var(--serif);font-weight:400;font-size:28px;margin:0 0 6px}
+p.note{font-size:13px;color:#9e9a8e;margin:0 0 24px;max-width:64ch;line-height:1.5}
+.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.card{position:relative;background:#141210;border:0.5px solid #4a453c;border-radius:2px;padding:18px 16px 10px;outline:none;cursor:pointer;color:#ede6d6;transition:border-color 900ms cubic-bezier(.16,1,.3,1)}
+.card:hover,.card:focus-visible{border-color:#a98a44}
+.card:focus-visible{outline:2px solid #c8a45c;outline-offset:3px}
+.pl{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:#a98a44;margin:0 0 6px}
+.nm{font-family:var(--serif);font-size:26px;font-weight:400;margin:0 0 6px;color:#ede6d6;transition:color 900ms cubic-bezier(.16,1,.3,1)}
+.card:hover .nm,.card:focus-visible .nm{color:#c8a45c}
+.ds{font-size:13px;line-height:1.5;color:#cfc8b6;margin:0;max-width:36ch}
+.plate{position:relative;margin-top:12px;height:174px}
+.plate canvas{position:absolute;top:0;image-rendering:pixelated}
+.plate svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.lab{opacity:0;transition:opacity 900ms ease}
+.card.on .lab{opacity:1}
+@media (max-width:680px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>Pillars as specimen plates</h1>
+<p class="note">Hover or tab to a card. Marble pours down the drafted column from its capital, the light follows your cursor, and the parts are named like an architectural treatise plate.</p>
+<div class="row" id="row">
+<article class="card" tabindex="0" role="group" aria-label="Doric: ingest from 40+ sources" data-o="0"><p class="pl">PLATE I</p><h3 class="nm">Doric</h3><p class="ds">Ingest from 40+ sources: warehouses, event streams, CRM. Live in minutes.</p><div class="plate"><canvas aria-hidden="true"></canvas><svg aria-hidden="true"></svg></div></article>
+<article class="card" tabindex="0" role="group" aria-label="Ionic: column-aware metrics" data-o="1"><p class="pl">PLATE II</p><h3 class="nm">Ionic</h3><p class="ds">Column-aware metrics: define revenue once, and every chart agrees.</p><div class="plate"><canvas aria-hidden="true"></canvas><svg aria-hidden="true"></svg></div></article>
+<article class="card" tabindex="0" role="group" aria-label="Corinthian: prompt your data" data-o="2"><p class="pl">PLATE III</p><h3 class="nm">Corinthian</h3><p class="ds">Prompt your data in plain language; get SQL and a chart back.</p><div class="plate"><canvas aria-hidden="true"></canvas><svg aria-hidden="true"></svg></div></article>
+</div>
+</main>
+<script>
+(function(){
+var SPEED=.3,RATE_IN=2.4,RATE_OUT=3.2,SNAP=.02,CELL=3,PH=174,REST_LIGHT=-.45;
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function rgb(h){var n=parseInt(h.slice(1),16);return [n>>16&255,n>>8&255,n&255]}
+var PAL=['#2b2820','#4a453c','#7d7766','#b3aa92','#d9d0b9','#f1ead9'].map(rgb);
+var GOLD=rgb('#c8a45c'),BONE=rgb('#f1ead9'),GHE=rgb('#5a5446'),GHF=rgb('#1a1813');
+var BAY=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5].map(function(v){return (v+.5)/16});
+function hash(x,y){var h=Math.sin(x*127.1+y*311.7)*43758.5453;return h-Math.floor(h)}
+function vn(x,y){var xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;xf=xf*xf*(3-2*xf);yf=yf*yf*(3-2*yf);var a=hash(xi,yi),b=hash(xi+1,yi),c=hash(xi,yi+1),d=hash(xi+1,yi+1);var t1=a+(b-a)*xf,t2=c+(d-c)*xf;return t1+(t2-t1)*yf}
+function dith(v,x,y){var i=Math.floor(v),f=v-i;if(i<0)return 0;if(f>BAY[(y&3)*4+(x&3)])i++;return i>5?5:i}
+
+/* K kinds: 1 fluted shaft, 2 flat slab, 3 curved (echinus/torus/bell), 4 volute ring, 5 acanthus, 6 dark egg hole */
+var K=0,U=0,HW=1,PER=3;
+function sil(o,x,y,cx){
+var dx=x-cx,ax=dx<0?-dx:dx,h,dd;K=0;U=dx;
+if(y>=49){h=y<52?20:y<55?24:28;if(ax<=h){K=2;HW=h}return}
+if(o>0&&y>=44){h=(y===46)?7:9;if(ax<=h){K=(y===46)?2:3;HW=h}return}
+if(o===0){
+ if(y>=6&&y<=7){if(ax<=12){K=2;HW=12}return}
+ if(y>=8&&y<=10){h=8+(10-y);if(ax<=h){K=3;HW=h}return}
+ if(y===11){if(ax<=8){K=2;HW=8}return}
+ if(y>=12){if(ax<=8){K=1;HW=8}}
+ return}
+if(o===1){
+ if(y===6){if(ax<=11){K=2;HW=11}return}
+ if(y>=7&&y<=13){dd=Math.hypot(ax-11,y-10);if(dd<=3.4&&(dd>=2||dd<=.8)){K=4;HW=3;return}}
+ if(y>=7&&y<=8){if(ax<=14){K=2;HW=14}return}
+ if(y>=9&&y<=11){if(ax<=8){K=(y===10&&(ax%3===1))?6:3;HW=8}return}
+ if(y===12){if(ax<=7){K=2;HW=7}return}
+ if(y>=13&&y<=43){if(ax<=7){K=1;HW=7}}
+ return}
+if(y>=4&&y<=5){h=13-(y-4);if(ax<=h){K=2;HW=h}return}
+if(y>=6&&y<=10){dd=Math.hypot(ax-11,y-8);if(dd<=2.8&&dd>=1.4){K=4;HW=3;return}}
+if(y>=6&&y<=16){h=12-Math.round((y-6)*.5);if(ax<=h){if(y===12&&(ax+1)%5>=4)return;if(y===9&&(ax+2)%6>=4)return;K=y>=9?5:3;HW=h}return}
+if(y===17){if(ax<=7){K=2;HW=7}return}
+if(y>=18&&y<=43){if(ax<=6){K=1;HW=6}}
+}
+var GV=false;
+function shade(o,x,y,lx,t){
+var tt=U/(HW+.5),v,nz,lam;
+if(tt>1)tt=1;if(tt<-1)tt=-1;nz=Math.sqrt(1-tt*tt);GV=false;
+if(K===6)return .3;
+if(K===4)return 3.6+.6*Math.sin(x*1.7+y*1.1);
+if(K===2){v=3.3+lx*tt*.7}
+else{lam=tt*lx+nz*.7;if(lam<0)lam=0;v=.5+lam*3.6;
+ if(K===1){var ph=((U+HW)%PER+PER)%PER;v+=PER===3?[.7,-.5,-.9][ph]:[.3,-.5,-.9,-.5][ph]}
+ else if(K===5){v+=.7*Math.sin(U*1.2+(y>=12?1.5:0))}}
+var n=vn(x*.12,y*.08+t*.03);if(Math.abs(n-.5)<.03)v-=.8;
+GV=Math.abs(vn(x*.09+7,y*.06+t*.02)-.5)<.014;
+return v}
+
+var LAB=[
+[['ABACUS','L',6.5,12],['ECHINUS','R',9,10],['FLUTES','L',28,8],['NO BASE','R',44,8]],
+[['VOLUTE','L',10,14],['ECHINUS','R',10,8],['FILLETS','L',28,7],['BASE','R',46,9]],
+[['VOLUTE','L',8,14],['ACANTHUS','R',13,10],['SLENDER','L',30,6],['BASE','R',46,9]]];
+var cards=[],raf=0,last=0,tm=0;
+function mk(el){
+var c={el:el,o:+el.getAttribute('data-o'),plate:el.querySelector('.plate'),cv:el.querySelector('canvas'),svg:el.querySelector('svg'),P:0,tgt:0,lx:REST_LIGHT,tlx:REST_LIGHT,dirty:true};
+c.ctx=c.cv.getContext('2d');return c}
+function labels(c,pw){
+var NS='http://www.w3.org/2000/svg',svg=c.svg,cxp=pw/2;
+while(svg.firstChild)svg.removeChild(svg.firstChild);
+svg.setAttribute('viewBox','0 0 '+pw+' '+PH);
+LAB[c.o].forEach(function(l,i){
+var side=l[1]==='L'?-1:1,y=l[2]*CELL+CELL/2,ex=cxp+side*l[3]*CELL,tx=cxp+side*(l[3]*CELL+18);
+var g=document.createElementNS(NS,'g');g.setAttribute('class','lab');g.style.transitionDelay=(i*220)+'ms';
+var ln=document.createElementNS(NS,'line');ln.setAttribute('x1',ex+side*2);ln.setAttribute('x2',tx-side*3);ln.setAttribute('y1',y);ln.setAttribute('y2',y);ln.setAttribute('stroke','#7d7766');ln.setAttribute('stroke-width','1');
+var tx2=document.createElementNS(NS,'text');tx2.setAttribute('x',tx);tx2.setAttribute('y',y+3.5);tx2.setAttribute('text-anchor',side<0?'end':'start');tx2.setAttribute('fill','#c9c1ae');tx2.setAttribute('font-size','10');tx2.setAttribute('letter-spacing','1');tx2.setAttribute('font-family','Space Mono, ui-monospace, monospace');tx2.textContent=l[0];
+g.appendChild(ln);g.appendChild(tx2);svg.appendChild(g)})}
+function layout(c){
+var pw=c.plate.clientWidth||200;
+c.Wc=Math.max(40,Math.floor(pw/CELL));c.Hc=Math.floor(PH/CELL);
+var n=c.Wc*c.Hc,cx=Math.floor(c.Wc/2),x,y,i;
+c.kind=new Uint8Array(n);c.u=new Int8Array(n);c.hw=new Uint8Array(n);c.edge=new Uint8Array(n);
+for(y=0;y<c.Hc;y++)for(x=0;x<c.Wc;x++){sil(c.o,x,y,cx);i=y*c.Wc+x;c.kind[i]=K;c.u[i]=U;c.hw[i]=HW}
+for(y=0;y<c.Hc;y++)for(x=0;x<c.Wc;x++){i=y*c.Wc+x;if(!c.kind[i])continue;
+ if(x===0||y===0||x===c.Wc-1||y===c.Hc-1||!c.kind[i-1]||!c.kind[i+1]||!c.kind[i-c.Wc]||!c.kind[i+c.Wc])c.edge[i]=1}
+c.cv.width=c.Wc;c.cv.height=c.Hc;c.cv.style.width=(c.Wc*CELL)+'px';c.cv.style.height=(c.Hc*CELL)+'px';c.cv.style.left=((pw-c.Wc*CELL)/2)+'px';
+c.img=c.ctx.createImageData(c.Wc,c.Hc);
+labels(c,pw);c.dirty=true}
+function render(c){
+var Wc=c.Wc,Hc=c.Hc,d=c.img.data,P=c.P,t=tm,lx=c.lx,amp=.25+.75*Math.sin(Math.PI*Math.min(P,1)),x,y;
+PER=c.o===0?3:4;
+for(y=0;y<Hc;y++)for(x=0;x<Wc;x++){
+ var i=y*Wc+x,o4=i*4,k=c.kind[i];
+ if(!k){d[o4+3]=0;continue}
+ K=k;U=c.u[i];HW=c.hw[i];
+ var fy=P*(Hc+14)-7+amp*(1.6*Math.sin(x*.32+t*2.2)+.8*Math.sin(x*.8-t*1.6)),col;
+ if(y<=fy){
+  if(y>fy-1.2&&P<.97)col=GOLD;
+  else{var v=shade(c.o,x,y,lx,t);col=GV?GOLD:PAL[dith(v,x,y)];if(y>fy-4&&hash(x,y+Math.floor(t*6))>.94)col=BONE}
+ }else{
+  if(y<=fy+3.5&&BAY[(y&3)*4+(x&3)]>(y-fy)/3.5)col=PAL[4];
+  else col=(c.edge[i]&&((x+y)&1)===0)?GHE:GHF}
+ d[o4]=col[0];d[o4+1]=col[1];d[o4+2]=col[2];d[o4+3]=255}
+c.ctx.putImageData(c.img,0,0)}
+function tick(now){
+var dt=Math.min((now-last)/1000,.05);last=now;
+var s=dt*SPEED,live=false;tm+=dt*.5;
+cards.forEach(function(c){
+ var prev=c.P;
+ if(reduce){c.P=c.tgt;c.lx=c.tlx}
+ else{c.P+=(c.tgt-c.P)*(1-Math.exp(-s*(c.tgt?RATE_IN:RATE_OUT)));if(Math.abs(c.tgt-c.P)<SNAP)c.P=c.tgt;c.lx+=(c.tlx-c.lx)*(1-Math.exp(-dt*5))}
+ if(c.P>0||c.P!==prev||c.dirty){render(c);c.dirty=false}
+ c.el.classList.toggle('on',c.P>.55);
+ if(!reduce&&(c.P>0||c.P!==c.tgt))live=true});
+raf=live?requestAnimationFrame(tick):0}
+function kick(){if(!raf){last=performance.now();raf=requestAnimationFrame(tick)}}
+function init(){
+document.querySelectorAll('.card').forEach(function(el){
+var c=mk(el);cards.push(c);
+el.addEventListener('pointerenter',function(){c.tgt=1;kick()});
+el.addEventListener('pointermove',function(e){var r=el.getBoundingClientRect();c.tlx=((e.clientX-r.left)/r.width-.5)*2});
+el.addEventListener('pointerleave',function(e){if(e.pointerType==='touch')return;c.tgt=0;c.tlx=REST_LIGHT;kick()});
+el.addEventListener('focusin',function(){c.tgt=1;kick()});
+el.addEventListener('focusout',function(){c.tgt=0;c.tlx=REST_LIGHT;kick()});
+new ResizeObserver(function(){layout(c);kick()}).observe(c.plate)})}
+init();
+window.__pillars=cards;window.__pillarsRender=render;
+})();
+</script>
+</body>
+</html>

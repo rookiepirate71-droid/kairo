@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oraculum: liquid marble tier reveal (reference demo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--font-voice:"Cormorant Garamond",Georgia,serif;--font-sans:"Inter",system-ui,sans-serif;--font-mono:"Space Mono",ui-monospace,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:#0d0c0a;color:#ede6d6;font-family:var(--font-sans);min-height:100vh;display:grid;place-items:center;padding:32px 16px}
+main{width:min(960px,100%)}
+h1{font-family:var(--font-voice);font-weight:400;font-size:28px;margin:0 0 6px}
+p.note{font-size:13px;color:#9e9a8e;margin:0 0 24px;max-width:60ch;line-height:1.5}
+.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.card{position:relative;height:350px;overflow:hidden;background:#141210;border:0.5px solid #4a453c;border-radius:2px;cursor:pointer;outline:none}
+.card:focus-visible{outline:2px solid #c8a45c;outline-offset:3px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.nogl .card:hover{background:var(--tb);color:var(--tf)}
+.fb{padding:16px;font-size:12px}
+.ctl{display:flex;gap:12px;align-items:center;margin-top:20px;font-size:13px;color:#9e9a8e}
+select{background:#141210;color:#ede6d6;border:1px solid #4a453c;padding:6px 10px;font:inherit}
+@media (max-width:640px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>Oraculum: the tiers</h1>
+<p class="note">Hover or tab to a card. The reveal runs at the cinematic default speed (0.3). Switch to Fast to compare.</p>
+<div class="stage"><div class="row">
+<div class="card" tabindex="0" role="group" aria-label="Citizen plan" style="--tb:#cdbb91;--tf:#0d0c0a"><div class="sr"><h3>Citizen</h3><p>One team, one honest dashboard. $400 per month. 5 seats included, 20 data sources, daily metric refresh.</p></div></div>
+<div class="card" tabindex="0" role="group" aria-label="Senator plan" style="--tb:#5b1a3a;--tf:#ede6d6"><div class="sr"><h3>Senator</h3><p>Companies that run the quarter on Oraculum. $1,200 per month. 25 seats included, unlimited sources, streaming refresh and alerts.</p></div></div>
+<div class="card" tabindex="0" role="group" aria-label="Emperor plan" style="--tb:#b48a38;--tf:#0d0c0a"><div class="sr"><h3>Emperor</h3><p>The empire: residency, SSO and SCIM, bespoke rites. Priced by rite. Unlimited seats, regional data residency, SLA with sacrifice clause.</p></div></div>
+</div></div>
+<div class="ctl"><label for="speed">Speed</label>
+<select id="speed"><option value="0.3" selected>Cinematic (default, 0.3)</option><option value="1">Fast (1.0)</option><option value="0.15">Glacial (0.15)</option></select></div>
+</main>
+<script>
+(function(){
+var TIERS=[
+{lat:'CIVIS',name:'Citizen',tag:'One team, one honest dashboard.',price:'$400',unit:'/ mo',feat:['5 seats included','20 data sources','Daily metric refresh'],cta:'REQUEST ACCESS',fg:'#0d0c0a',acc:'#8f3f22',bg:'#cdbb91',bg2:'#f0e8d2',vein:'#8f3f22',strata:1},
+{lat:'SENATOR',name:'Senator',tag:'Companies that run the quarter on Oraculum.',price:'$1,200',unit:'/ mo',feat:['25 seats included','Unlimited sources','Streaming refresh + alerts'],cta:'REQUEST ACCESS',fg:'#ede6d6',acc:'#c8a45c',bg:'#2e0c1f',bg2:'#6e2144',vein:'#c8a45c',strata:0},
+{lat:'IMPERATOR',name:'Emperor',tag:'The empire: residency, SSO/SCIM, bespoke rites.',price:'By rite',unit:'',feat:['Unlimited seats','Regional data residency','SLA with sacrifice clause'],cta:'SPEAK TO THE SENATE',fg:'#0d0c0a',acc:'#5b1a3a',bg:'#b48a38',bg2:'#e8cb83',vein:'#4a1330',strata:0}];
+var VS=['#version 300 es','void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}'].join('\n');
+var FS=['#version 300 es','precision highp float;',
+'uniform vec2 uRes,uO,uM;uniform float uT,uP,uS,uMA,uD;uniform vec3 uBase,uBg,uBg2,uVein;uniform sampler2D uTB,uTT;out vec4 oc;',
+'float h(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}',
+'float n(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),u.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),u.x),u.y);}',
+'float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p=p*2.02+vec2(1.7,9.2);a*=.5;}return v;}',
+'float bay(vec2 c){int i=int(mod(c.x,4.))+4*int(mod(c.y,4.));float m[16]=float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);return (m[i]+.5)/16.;}',
+'void main(){',
+'vec2 f=gl_FragCoord.xy,uv=f/uRes;float as=uRes.x/uRes.y;',
+'vec2 p=vec2(uv.x*as,uv.y),o=vec2(uO.x/uRes.x*as,uO.y/uRes.y);',
+'float R=uP*length(vec2(as,1.))*1.12;',
+'float wob=sin(3.14159*clamp(uP,0.,1.));',
+'vec2 w=vec2(fbm(p*2.2+uT*.25),fbm(p*2.2+5.2-uT*.2));',
+'float d=length(p-o)+((fbm(p*3.+w*2.+uT*.18)-.5)*.55+(w.x-.5)*.1)*wob;',
+'float s=R-d;float m=smoothstep(0.,.012,s);',
+'float pres=smoothstep(0.,.04,uP)*(1.-smoothstep(.9,1.,uP));',
+'vec2 dir=normalize(p-o+1e-4);',
+'float rip=sin(s*70.-uT*2.)*exp(-abs(s)*10.)*wob;',
+'float disp=rip*.012+exp(-s*s/.002)*.012*wob;',
+'vec2 q=p+dir*disp;vec2 uv2=uv+dir*disp*vec2(1./as,1.);',
+'vec4 tt=texture(uTT,uv2);',
+'vec2 fl=vec2(fbm(q*1.6+uT*.05),fbm(q*1.6+3.1-uT*.04));',
+'float f1=fbm(q*2.+fl*2.4+uT*.03);',
+'float ridge=1.-abs(2.*f1-1.);',
+'float vein=(pow(ridge,9.)+.35*pow(1.-abs(2.*fbm(q*5.+fl*3.)-1.),14.))*(1.-.85*tt.a);',
+'float st=uS*(.5+.5*sin(q.y*22.+f1*9.))*.35;',
+'vec3 art=mix(uBg,uBg2,smoothstep(.25,.8,f1+st));',
+'art=mix(art,uVein,clamp(vein,0.,1.)*.9);',
+'float ms=exp(-pow(length(p-vec2(uM.x/uRes.x*as,uM.y/uRes.y)),2.)*9.)*uMA;',
+'art+=ms*.14*(uBg2+.25);',
+'art=mix(art,tt.rgb,tt.a);',
+'vec3 base=uBase+(h(f*.5)-.5)*.012;',
+'vec4 bt=texture(uTB,uv);base=mix(base,bt.rgb,bt.a);',
+'float ah=max(-s,0.);float out_=step(s,0.)*pres;',
+'base*=1.-.38*(1.-smoothstep(0.,.07,ah))*out_;',
+'float mist=(1.-smoothstep(0.,.11,ah))*out_;',
+'float dt=step(bay(floor(f/(3.*uD))),mist*mist);',
+'base=mix(base,vec3(.78,.64,.36),dt*.85);',
+'vec3 col=mix(base,art,m);',
+'float inn=smoothstep(0.,.03,s)*(1.-smoothstep(.03,.14,s))*pres;',
+'col+=inn*.08*vec3(1.,.95,.85);',
+'float ed=exp(-s*s/.0001)*pres;',
+'col=mix(col,vec3(1.,.87,.55),clamp(ed,0.,1.)*.95);',
+'float sp=step(.988,h(floor(f/(2.*uD))+floor(uT*10.)))*exp(-s*s/.0004)*pres;',
+'col=mix(col,vec3(1.),sp);',
+'oc=vec4(col,1.);}'].join('\n');
+var RATE_IN=2.4,RATE_OUT=3.2,SNAP=.02;
+var stage=document.querySelector('.stage'),speedSel=document.getElementById('speed');
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+var DPR=Math.min(window.devicePixelRatio||1,1.5);
+var V3=function(x){var n=parseInt(x.slice(1),16);return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]};
+var F={v:'Georgia,serif',s:'system-ui,sans-serif',m:'ui-monospace,monospace'};
+function probe(v,d){var s=document.createElement('span');s.style.cssText='position:absolute;visibility:hidden;font-family:'+v;stage.appendChild(s);var f=getComputedStyle(s).fontFamily;s.remove();return f&&f.indexOf('var(')<0?f:d}
+function wrap(x,t,mw){var ws=t.split(' '),L=[],c='';ws.forEach(function(w){var nx=c?c+' '+w:w;if(x.measureText(nx).width>mw&&c){L.push(c);c=w}else c=nx});L.push(c);return L}
+function ls(x,v){if('letterSpacing' in x)x.letterSpacing=v}
+function layout(x,t,w,h,fg,ac){
+var P=16,iw=w-P*2,y;
+x.fillStyle=fg;x.globalAlpha=.8;x.font='11px '+F.m;ls(x,'1.8px');x.fillText(t.lat,P,32);
+x.globalAlpha=1;ls(x,'0px');x.font='26px '+F.v;x.fillText(t.name,P,70);
+x.font='12px '+F.s;x.globalAlpha=.85;y=96;
+wrap(x,t.tag,iw).forEach(function(l){x.fillText(l,P,y);y+=17});x.globalAlpha=1;
+x.font='32px '+F.v;x.fillText(t.price,P,176);var pw=x.measureText(t.price).width;
+if(t.unit){x.font='12px '+F.s;x.globalAlpha=.7;x.fillText(t.unit,P+pw+6,176);x.globalAlpha=1}
+x.font='12px '+F.s;y=208;
+t.feat.forEach(function(f){var L=wrap(x,f,iw-13);x.fillStyle=ac;x.fillRect(P,y-8,5,5);x.fillStyle=fg;L.forEach(function(l){x.fillText(l,P+13,y);y+=17});y+=7});
+x.strokeStyle=fg;x.lineWidth=1;x.strokeRect(P+.5,h-P-34+.5,iw-1,33);
+x.font='11px '+F.m;ls(x,'1.8px');x.textAlign='center';x.fillText(t.cta,w/2,h-P-34+21);x.textAlign='left';ls(x,'0px');
+}
+function sh(g,ty,src){var o=g.createShader(ty);g.shaderSource(o,src);g.compileShader(o);if(!g.getShaderParameter(o,g.COMPILE_STATUS))throw new Error(g.getShaderInfoLog(o));return o}
+var cards=[],raf=0,last=0,tt=0;
+function setup(el,t){
+var cv=document.createElement('canvas');cv.style.cssText='position:absolute;inset:0;width:100%;height:100%;display:block';
+var g=cv.getContext('webgl2',{antialias:false});if(!g)throw new Error('no webgl2');
+var pr=g.createProgram();g.attachShader(pr,sh(g,g.VERTEX_SHADER,VS));g.attachShader(pr,sh(g,g.FRAGMENT_SHADER,FS));g.linkProgram(pr);
+if(!g.getProgramParameter(pr,g.LINK_STATUS))throw new Error('link');
+g.useProgram(pr);
+var u={};['uRes','uO','uM','uT','uP','uS','uMA','uD','uBase','uBg','uBg2','uVein','uTB','uTT'].forEach(function(k){u[k]=g.getUniformLocation(pr,k)});
+var mkTex=function(unit){var tx=g.createTexture();g.activeTexture(g.TEXTURE0+unit);g.bindTexture(g.TEXTURE_2D,tx);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);return tx};
+var c={el:el,cv:cv,g:g,u:u,t:t,tb:mkTex(0),tt:mkTex(1),P:0,tgt:0,ox:0,oy:0,tox:0,toy:0,mx:0,my:0,ma:0,tma:0,w:1,h:1,W:1,H:1,dirty:true};
+g.uniform1i(u.uTB,0);g.uniform1i(u.uTT,1);
+g.uniform1f(u.uS,t.strata);g.uniform1f(u.uD,DPR);
+g.uniform3fv(u.uBase,V3('#141210'));g.uniform3fv(u.uBg,V3(t.bg));g.uniform3fv(u.uBg2,V3(t.bg2));g.uniform3fv(u.uVein,V3(t.vein));
+el.insertBefore(cv,el.firstChild);
+return c}
+function paint(c){
+var g=c.g;
+[[0,c.tb,'#ede6d6','#c8a45c'],[1,c.tt,c.t.fg,c.t.acc]].forEach(function(a){
+var cv=document.createElement('canvas');cv.width=Math.round(c.w*DPR);cv.height=Math.round(c.h*DPR);
+var x=cv.getContext('2d');x.scale(DPR,DPR);layout(x,c.t,c.w,c.h,a[2],a[3]);
+g.activeTexture(g.TEXTURE0+a[0]);g.bindTexture(g.TEXTURE_2D,a[1]);
+g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,true);g.texImage2D(g.TEXTURE_2D,0,g.RGBA,g.RGBA,g.UNSIGNED_BYTE,cv)})}
+function draw(c){
+var g=c.g,u=c.u;
+g.uniform2f(u.uRes,c.W,c.H);g.uniform2f(u.uO,c.ox,c.oy);g.uniform2f(u.uM,c.mx,c.my);
+g.uniform1f(u.uT,tt);g.uniform1f(u.uP,c.P);g.uniform1f(u.uMA,c.ma);
+g.drawArrays(g.TRIANGLES,0,3)}
+function tick(now){
+var sp=parseFloat(speedSel.value)||.3;
+var s=Math.min((now-last)/1000,.05)*sp;last=now;
+if(!reduce)tt+=s;
+var live=false;
+cards.forEach(function(c){
+var prev=c.P;
+if(reduce){c.P=c.tgt;c.ox=c.tox;c.oy=c.toy}
+else{
+c.P+=(c.tgt-c.P)*(1-Math.exp(-s*(c.tgt?RATE_IN:RATE_OUT)));
+if(Math.abs(c.tgt-c.P)<SNAP)c.P=c.tgt;
+c.ox+=(c.tox-c.ox)*(1-Math.exp(-s*8));c.oy+=(c.toy-c.oy)*(1-Math.exp(-s*8));
+c.ma+=(c.tma-c.ma)*(1-Math.exp(-s*6))}
+if(c.P>0||c.P!==prev||c.dirty){draw(c);c.dirty=false}
+if(!reduce&&(c.P>0||c.P!==c.tgt))live=true});
+raf=live?requestAnimationFrame(tick):0}
+function kick(){if(!raf){last=performance.now();raf=requestAnimationFrame(tick)}}
+function pt(c,e){var r=c.el.getBoundingClientRect();return [(e.clientX-r.left)*DPR,(r.height-(e.clientY-r.top))*DPR]}
+function wire(c){
+var el=c.el;
+el.addEventListener('pointerenter',function(e){var p=pt(c,e);c.tox=p[0];c.toy=p[1];c.mx=p[0];c.my=p[1];if(c.P<.01){c.ox=p[0];c.oy=p[1]}c.tgt=1;c.tma=1;kick()});
+el.addEventListener('pointermove',function(e){var p=pt(c,e);c.mx=p[0];c.my=p[1];if(c.tgt===1&&c.P<.01){c.ox=p[0];c.oy=p[1];c.tox=p[0];c.toy=p[1]}});
+el.addEventListener('pointerleave',function(e){if(e.pointerType==='touch')return;var p=pt(c,e);c.tox=p[0];c.toy=p[1];c.tgt=0;c.tma=0;kick()});
+el.addEventListener('focus',function(){c.tox=c.W*.5;c.toy=c.H*.62;if(c.P<.01){c.ox=c.tox;c.oy=c.toy}c.tgt=1;kick()});
+el.addEventListener('blur',function(){c.tgt=0;c.tma=0;kick()});
+new ResizeObserver(function(){var r=el.getBoundingClientRect();c.w=r.width;c.h=r.height;c.W=Math.round(r.width*DPR);c.H=Math.round(r.height*DPR);c.cv.width=c.W;c.cv.height=c.H;c.g.viewport(0,0,c.W,c.H);paint(c);c.dirty=true;kick()}).observe(el)}
+function fallback(){
+stage.classList.add('nogl');
+cards.forEach(function(c){c.cv.remove()});
+document.querySelectorAll('.card > div').forEach(function(d){d.className='fb'})}
+function init(){
+F.v=probe('var(--font-voice)',F.v);F.s=probe('var(--font-sans)',F.s);F.m=probe('var(--font-mono)',F.m);
+try{
+document.querySelectorAll('.card').forEach(function(el,i){var c=setup(el,TIERS[i]);cards.push(c);wire(c)})
+}catch(err){fallback()}}
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(init);else init();
+})();
+</script>
+</body>
+</html>

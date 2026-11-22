@@ -1,0 +1,247 @@
+@import "tailwindcss";
+
+/* Fonts are loaded by next/font in layout.tsx and exposed as
+   --font-cormorant, --font-inter, --font-space-mono. `inline` makes the
+   utilities reference those variables directly. */
+@theme inline {
+  --font-display: var(--font-cormorant), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, "Courier New", monospace;
+}
+
+/* `static` keeps every variable in the output so inline styles and
+   WebGL (getComputedStyle) can always read them. */
+@theme static {
+  /* palette: Roman pavilion */
+  --color-ink: #0d0c0a;
+  --color-charcoal: #141210;
+  --color-sand: #e7dfcd;
+  --color-bone: #ede6d6;
+  --color-travertine: #d6c6a1;
+  --color-terracotta: #b5532f; /* large text / non-text only */
+  --color-terra-deep: #8f3f22;
+  --color-oxidized: #a98a44; /* on dark only */
+  --color-gold: #c8a45c; /* on dark only */
+  --color-purple: #5b1a3a;
+  --color-plum: #6e2144;
+  --color-verdigris: #2f6f5e;
+  --color-marble: #9e9a8e;
+  --color-stone: #4a453c; /* decorative only, fails contrast as text */
+
+  /* tier stones for the liquid reveal (read by WebGL via getComputedStyle) */
+  --tier-citizen-stone: #cdbb91;
+  --tier-citizen-stone-light: #f0e8d2;
+  --tier-citizen-vein: #8f3f22;
+  --tier-citizen-ink: #0d0c0a;
+  --tier-citizen-accent: #8f3f22;
+
+  --tier-senator-stone: #2e0c1f;
+  --tier-senator-stone-light: #6e2144;
+  --tier-senator-vein: #c8a45c;
+  --tier-senator-ink: #ede6d6;
+  --tier-senator-accent: #c8a45c;
+
+  --tier-emperor-stone: #b48a38;
+  --tier-emperor-stone-light: #e8cb83;
+  --tier-emperor-vein: #4a1330;
+  --tier-emperor-ink: #0d0c0a;
+  --tier-emperor-accent: #5b1a3a;
+
+  /* radii: cut stone, near-sharp */
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+
+  /* shadows */
+  --shadow-rest: 0 1px 2px rgb(13 12 10 / 0.25);
+  --shadow-raised: 0 4px 16px rgb(13 12 10 / 0.35);
+}
+
+:root {
+  /* layout */
+  --nav-h: 4.5rem;
+  --tier-card-h: 350px;
+
+  /* motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-quad: cubic-bezier(0.55, 0, 0.85, 0.45);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  --dur-fast: 150ms;
+  --dur-base: 300ms;
+  --dur-slow: 700ms;
+  --dur-scene: 1200ms;
+
+  /* layers */
+  --z-nav: 50;
+  --z-modal: 100;
+  --z-cursor: 200;
+
+  /* semantic surface: dark is the default */
+  --surface: var(--color-ink);
+  --on-surface: var(--color-bone);
+  --accent: var(--color-gold);
+  --focus-ring: var(--color-gold);
+
+  color-scheme: dark;
+}
+
+/* Put data-theme="light" on any light band (travertine, marble). */
+[data-theme="light"] {
+  --surface: var(--color-sand);
+  --on-surface: var(--color-ink);
+  --accent: var(--color-terra-deep);
+  --focus-ring: var(--color-purple);
+
+  color-scheme: light;
+}
+
+/* Native smooth scroll only when Lenis is not driving the page. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.lenis) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Lenis required CSS */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/* anchored sections clear the fixed nav */
+section[id] {
+  scroll-margin-top: calc(var(--nav-h) + 1rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-stone) var(--color-charcoal);
+}
+
+body {
+  background: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+::selection {
+  background: var(--color-purple);
+  color: var(--color-bone);
+}
+
+/* focus ring: colour comes from the active surface so it always contrasts.
+   No border-radius here on purpose; it would reshape round elements. */
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* meander (greek key): a masked tile, so colour follows `color`.
+   Add aria-hidden="true" on the element. 16x12 tile, seamless on repeat-x. */
+.meander-strip {
+  height: 0.75rem;
+  color: var(--color-oxidized);
+  background-color: currentColor;
+  opacity: 0.5;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='12' viewBox='0 0 16 12' shape-rendering='crispEdges'%3E%3Cpath d='M0 11.5H16M2.5 11.5V1.5H13.5V9.5H5.5V4.5H10.5V7' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E") repeat-x left center / 16px 12px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='12' viewBox='0 0 16 12' shape-rendering='crispEdges'%3E%3Cpath d='M0 11.5H16M2.5 11.5V1.5H13.5V9.5H5.5V4.5H10.5V7' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E") repeat-x left center / 16px 12px;
+}
+
+/* travertine texture: faint overlapping radial strata */
+.travertine-bg {
+  background-color: var(--color-sand);
+  background-image:
+    radial-gradient(ellipse 80% 30% at 20% 10%, rgb(165 138 88 / 0.12), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 40%, rgb(165 138 88 / 0.09), transparent 55%),
+    radial-gradient(ellipse 90% 50% at 50% 90%, rgb(139 111 60 / 0.1), transparent 60%);
+}
+
+/* coffered dot grid for Pillars of Memory */
+.coffer-bg {
+  background-color: var(--color-ink);
+  background-image:
+    radial-gradient(circle 1px at 12px 12px, rgb(237 230 214 / 0.07) 1px, transparent 1px),
+    radial-gradient(circle 1px at 36px 36px, rgb(169 138 68 / 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* long-form manifesto measure; colours follow the surface theme */
+.prose-manifesto {
+  font-family: var(--font-display);
+  font-size: clamp(1.125rem, 0.95rem + 0.6vw, 1.375rem);
+  line-height: 1.6;
+  color: var(--on-surface);
+}
+.prose-manifesto + .prose-manifesto {
+  margin-top: 1.25rem;
+}
+.prose-manifesto .dropcap::first-letter,
+.prose-manifesto.dropcap::first-letter {
+  float: left;
+  font-size: 3.4em;
+  line-height: 0.82;
+  padding-right: 0.08em;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* floating drift for decorative orbs */
+@keyframes orb-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-14px) scale(1.03);
+  }
+}
+
+/* ---- pricing tier card (liquid reveal) ---- */
+.tier-card {
+  position: relative;
+  height: var(--tier-card-h);
+  overflow: hidden;
+  background: var(--color-charcoal);
+  color: var(--color-bone);
+  border: 0.5px solid var(--color-stone);
+  border-radius: var(--radius-sm);
+}
+/* no WebGL2: instant theme swap, no animation */
+.tier-card[data-gl="off"]:is(:hover, :focus-within) {
+  background: var(--tb);
+  color: var(--tf);
+}
+/* WebGL on: the canvas paints the CTA, the real link sits invisibly on top */
+.tier-card[data-gl="on"] .tier-card__cta {
+  color: transparent;
+  border-color: transparent;
+}

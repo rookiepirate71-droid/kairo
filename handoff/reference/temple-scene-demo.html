@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oraculum: the Temple scene (reference demo)</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400&family=Inter:wght@400&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--serif:"Cormorant Garamond",Georgia,serif;--sans:"Inter",system-ui,sans-serif;--mono:"Space Mono",ui-monospace,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:#0d0c0a;color:#ede6d6;font-family:var(--sans);padding:32px 16px}
+main{max-width:1100px;margin:0 auto}
+.frame{background:#0d0c0a;border:0.5px solid #4a453c}
+canvas{display:block;width:100%;height:auto;aspect-ratio:16/9;image-rendering:pixelated}
+.txt{padding:26px 20px 10px;text-align:center}
+.eb{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:#c8a45c;margin:0 0 12px}
+.q{font-family:var(--serif);font-style:italic;font-size:clamp(22px,3vw,34px);line-height:1.3;color:#ede6d6;margin:0 auto;max-width:34ch}
+.at{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:#a98a44;margin:14px 0 0}
+.ctl{display:flex;gap:12px;align-items:center;padding:14px 20px 18px;font-size:13px;color:#9e9a8e}
+.ctl input{flex:1}
+button{background:#141210;color:#ede6d6;border:1px solid #4a453c;padding:6px 12px;font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid #c8a45c;outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<div class="frame">
+<canvas id="sc" role="img" aria-label="Pixel-art Greek temple at dusk, lit by an inner flame, with layered mountains and cypress trees"></canvas>
+<div class="txt">
+<p class="eb">III — THE TEMPLE</p>
+<blockquote class="q" style="margin-block:0">“The command center is finished when the board agrees — and the board has never once agreed.”</blockquote>
+<p class="at">— PRAXEAS, FIRST CUSTOMER IN RESIDENCE</p>
+</div>
+<div class="ctl"><label for="p">Scroll position</label><input id="p" type="range" min="0" max="100" value="35"><output id="o" for="p">35%</output><button id="a" type="button">Auto</button></div>
+</div>
+</main>
+<script>
+(function(){
+var W=160,H=90;
+var cv=document.getElementById('sc'),ctx=cv.getContext('2d');
+cv.width=W;cv.height=H;
+var img=ctx.createImageData(W,H),D=img.data;
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function rgb(h){var n=parseInt(h.slice(1),16);return [n>>16&255,n>>8&255,n&255]}
+function pal(a){return a.map(rgb)}
+var SKY=pal(['#0d0c0a','#150b14','#240c1c','#3a1230','#5b1a3a','#8f3f22','#c8a45c']);
+var MF=pal(['#2e0c1f','#3a1230','#4a1a3c','#6e2144']);
+var MN=pal(['#120a12','#1a0d17','#241020','#3a1230']);
+var TS=pal(['#2b2820','#4a453c','#7d7766','#b3aa92','#d9d0b9','#f1ead9']);
+var PU=pal(['#2e0c1f','#3a1230','#5b1a3a','#6e2144','#8f3f22']);
+var GD=pal(['#7a6330','#a98a44','#c8a45c','#e2c27a']);
+var IN=pal(['#0d0c0a','#1c1409','#3a2a12','#7a5a24','#c8a45c']);
+var FG=pal(['#0a090a','#120a12']);
+var BONE=rgb('#ede6d6');
+var BAY=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5].map(function(v){return (v+.5)/16});
+function hsh(x,y){var h=Math.sin(x*127.1+y*311.7)*43758.5453;return h-Math.floor(h)}
+function pick(p,v,x,y){var i=Math.floor(v),f=v-i;if(i<0)return p[0];if(f>BAY[(y&3)*4+(x&3)])i++;return p[i>p.length-1?p.length-1:i]}
+var COLX=[44,57,70,82,95,108];
+function colIdx(tx){for(var i=0;i<6;i++){var u=tx-COLX[i];if(u>=0&&u<=7)return i}return -1}
+var topF=new Float32Array(W),topN=new Float32Array(W);
+var p=.35,auto=true,mx=0,tmx=0,t=0;
+function off(d){return [Math.round(mx*d*4),Math.round(-p*d*8)]}
+
+function temple(tx,ty,x,y,lx,flick){
+if(ty<10||ty>81)return null;
+var L=1.5*Math.exp(-((tx-lx)*(tx-lx))/576),ax=Math.abs(tx-80),hw,i,u;
+if(ty<=23){hw=3+(ty-10)*3;if(ax>hw)return null;
+ if(ty>=14&&ty<=22&&ax<=hw-5){
+  if(ax+Math.abs(ty-18)<=2)return (tx===80&&ty===18)?IN[0]:pick(GD,1.6+L*.5,x,y);
+  return pick(PU,1.3+(ty-14)*.15+L*.5,x,y)}
+ return pick(TS,3+L+(ax>hw-2?.5:0)+(ty===10?.8:0),x,y)}
+if(ty<=25){if(tx<38||tx>121)return null;return pick(ty===24?GD:TS,ty===24?1.4+L:3.3+L,x,y)}
+if(ty<=30){if(tx<42||tx>117)return null;var m=(tx-42)%8;
+ if(m>=1&&m<=4)return pick(TS,3.1+L+(m===1?.4:0)-(m===4?.3:0),x,y);
+ return pick(PU,.9+L*.35,x,y)}
+if(ty<=33){if(tx<42||tx>117)return null;return pick(TS,2.5+L+(ty===31?.6:0),x,y)}
+if(ty<=72){
+ if(ty<=36){for(i=0;i<6;i++){var a0=ty===36?COLX[i]:COLX[i]-1,a1=ty===36?COLX[i]+7:COLX[i]+8;if(tx>=a0&&tx<=a1)return pick(TS,(ty===36?2.4:3.5)+L,x,y)}}
+ else{i=colIdx(tx);
+  if(i>=0){u=tx-COLX[i];var tn=(u-3.5)/4,nz=Math.sqrt(1-tn*tn),sg=lx>tx?1:-1;
+   var vv=.7+(nz*.55+tn*sg*.6)*2.6+L-(ty-37)/36*.4-((u&1)?.6:0);return pick(TS,vv,x,y)}}
+ if(tx>=44&&tx<=115&&ty>=34){
+  var fx=tx-80,fy=ty-66,d2=fx*fx+fy*fy;
+  if((tx===79||tx===80)&&ty>=63&&ty<=67)return pick(GD,(ty<65?2.6:1.6)+(flick-.8),x,y);
+  return pick(IN,.2+3.2*Math.exp(-d2/40)*flick,x,y)}
+ return null}
+if(ty<=75){if(tx<40||tx>120)return null;return pick(TS,2.4+L*.9+(ty===73?.7:0),x,y)}
+if(ty<=78){if(tx<36||tx>124)return null;return pick(TS,2.1+L*.9+(ty===76?.7:0),x,y)}
+if(tx<32||tx>128)return null;return pick(TS,1.8+L*.9+(ty===79?.7:0),x,y)}
+
+var TR=[[12,26,6.5],[148,26,6.5],[29,44,5],[131,44,5]];
+function frame(){
+var lx=10+p*140+mx*20;
+var oS=off(.1),oF=off(.35),oN=off(.55),oT=off(.8),oG=off(1.3);
+var x,y,i,k;
+for(x=0;x<W;x++){
+ topF[x]=58+oF[1]+5*Math.sin((x-oF[0])*.06+1)+3*Math.sin((x-oF[0])*.17)+1.6*Math.sin((x-oF[0])*.43);
+ topN[x]=67+oN[1]+4*Math.sin((x-oN[0])*.05+3)+2.4*Math.sin((x-oN[0])*.21)+1.2*Math.sin((x-oN[0])*.5)}
+var flick=.8+.2*Math.sin(t*9)+.1*Math.sin(t*23);
+for(y=0;y<H;y++){for(x=0;x<W;x++){
+ var c,gx=(x-80)/52,gy=(y-80)/34,glow=Math.exp(-(gx*gx+gy*gy))*(2.8+1.6*p);
+ var v=Math.pow(Math.max(0,Math.min(1,(y-oS[1])/78)),1.5)*3.1+glow;
+ if(v<1.7&&hsh(x*1.3-oS[0],y*1.7)>.9955&&Math.sin(t*2+hsh(x,y)*40)>-.1)c=BONE;else c=pick(SKY,v,x,y);
+ if(y>=topF[x])c=pick(MF,.9+1.8*Math.exp(-(y-topF[x])/7)+glow*.9,x,y);
+ if(y>=topN[x])c=pick(MN,.3+1.2*Math.exp(-(y-topN[x])/6)+glow*.4,x,y);
+ var fa=.34*Math.max(0,1-Math.abs(y-77)/9)*(.6+.4*Math.sin(x*.07+t*.3));
+ if(fa>0&&hsh(x,y*3)<fa)c=MF[3];
+ var tc=temple(x-oT[0],y-oT[1],x,y,lx,flick);if(tc)c=tc;
+ var fxx=x-oG[0],fyy=y-oG[1];
+ for(k=0;k<4;k++){var tr=TR[k];
+  if(fyy>=tr[1]&&fyy<=98){var q=(fyy-(tr[1]+98)/2)/((98-tr[1])/2);
+   var hw2=tr[2]*Math.sqrt(Math.max(0,1-q*q))+(hsh(fxx,fyy)>.82?.9:0);
+   if(Math.abs(fxx-tr[0])<=hw2)c=FG[hsh(fxx*2,fyy)>.7?1:0]}}
+ if(y>=86)c=FG[0];
+ i=(y*W+x)*4;D[i]=c[0];D[i+1]=c[1];D[i+2]=c[2];D[i+3]=255}}
+for(k=0;k<36;k++){
+ var px=Math.floor((hsh(k,1)*W+t*(2+hsh(k,2)*4))%W),py=Math.floor(H-((hsh(k,3)*H+t*(3+hsh(k,4)*5))%H));
+ if(py<0||py>=H||Math.sin(t*1.5+k*2.3)<0)continue;
+ var cc=(k&1)?BONE:GD[2];i=(py*W+px)*4;D[i]=cc[0];D[i+1]=cc[1];D[i+2]=cc[2]}
+}
+var sl=document.getElementById('p'),out=document.getElementById('o'),ab=document.getElementById('a');
+function draw(){frame();ctx.putImageData(img,0,0);out.textContent=Math.round(p*100)+'%'}
+var running=false,last=0,visible=true;
+function tick(now){
+ var dt=Math.min((now-last)/1000,.05);last=now;
+ if(!reduce){t+=dt;if(auto){p=.5+.5*Math.sin(t*.22-1.2);sl.value=Math.round(p*100)}}
+ mx+=(tmx-mx)*(1-Math.exp(-dt*3));
+ draw();
+ if(visible&&!reduce)requestAnimationFrame(tick);else running=false}
+function start(){if(running||reduce)return;running=true;last=performance.now();requestAnimationFrame(tick)}
+sl.addEventListener('input',function(){auto=false;p=sl.value/100;if(reduce)draw()});
+ab.addEventListener('click',function(){auto=true;start()});
+cv.addEventListener('pointermove',function(e){var r=cv.getBoundingClientRect();tmx=((e.clientX-r.left)/r.width-.5)*2});
+cv.addEventListener('pointerleave',function(){tmx=0});
+new IntersectionObserver(function(es){visible=es[0].isIntersecting;if(visible)start()}).observe(cv);
+draw();start();
+window.__temple={draw:draw,set:function(v){p=v;auto=false;draw()},D:D,W:W,H:H};
+})();
+</script>
+</body>
+</html>
