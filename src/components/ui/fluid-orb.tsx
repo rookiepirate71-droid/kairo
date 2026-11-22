@@ -325,90 +325,75 @@ const FluidOrb = ({
       const a = anchorCenter()
 
       if (!reduce) {
-        // park while the orb's own section is off-screen: the browser window
-        // is the orb's environment only while the orb is on stage
-        const margin = size
-        const parked =
-          a.y < -margin || a.y > window.innerHeight + margin
-        if (parked) {
-          pos.x = 0
-          pos.y = 0
-          vel.x = 0
-          vel.y = 0
-          energy += (0 - energy) * Math.min(dt * 6, 1)
+        // always on: the window is the orb's environment no matter which
+        // section is on screen. The anchor rides with the page, so when you
+        // scroll away the walls hold the orb at the window edge nearest its
+        // home, and the spring walks it back as the section returns.
+        if (dragging) {
+          // the orb tracks the pointer directly; the velocity it keeps on
+          // release is smoothed from that motion, so throws feel weighted
+          const tx = lastPtr.x + grab.x - a.x
+          const ty = lastPtr.y + grab.y - a.y
+          const ivx = Math.max(Math.min((tx - pos.x) / Math.max(dt, 0.008), 4000), -4000)
+          const ivy = Math.max(Math.min((ty - pos.y) / Math.max(dt, 0.008), 4000), -4000)
+          vel.x = vel.x * 0.4 + ivx * 0.6
+          vel.y = vel.y * 0.4 + ivy * 0.6
+          pos.x = tx
+          pos.y = ty
         } else {
-          if (dragging) {
-            // the orb tracks the pointer directly; the velocity it keeps on
-            // release is smoothed from that motion, so throws feel weighted
-            const tx = lastPtr.x + grab.x - a.x
-            const ty = lastPtr.y + grab.y - a.y
-            const ivx = (tx - pos.x) / Math.max(dt, 0.008)
-            const ivy = (ty - pos.y) / Math.max(dt, 0.008)
-            vel.x = vel.x * 0.4 + ivx * 0.6
-            vel.y = vel.y * 0.4 + ivy * 0.6
-            pos.x = tx
-            pos.y = ty
-          } else {
-            // soft spring home
-            vel.x += (-SPRING * pos.x - DAMP * vel.x) * dt
-            vel.y += (-SPRING * pos.y - DAMP * vel.y) * dt
-            pos.x += vel.x * dt
-            pos.y += vel.y * dt
-          }
-
-          // window edges are walls; the wall margin accounts for the
-          // squash-and-stretch AABB so a speeding orb never spills the page
-          let cx = a.x + pos.x
-          let cy = a.y + pos.y
-          const rad = (Math.atan2(vel.y, vel.x) * Math.PI) / 180
-          const ca = Math.abs(Math.cos(rad))
-          const sa = Math.abs(Math.sin(rad))
-          const st = Math.min(Math.hypot(vel.x, vel.y) / 2600, 0.14)
-          const halfW = radius * ((1 + st) * ca + (1 - st * 0.7) * sa)
-          const halfH = radius * ((1 + st) * sa + (1 - st * 0.7) * ca)
-          const minX = halfW
-          const maxX = window.innerWidth - halfW
-          const minY = halfH
-          const maxY = window.innerHeight - halfH
-          if (cx < minX) {
-            cx = minX
-            vel.x = Math.abs(vel.x) * REST
-          } else if (cx > maxX) {
-            cx = maxX
-            vel.x = -Math.abs(vel.x) * REST
-          }
-          if (cy < minY) {
-            cy = minY
-            vel.y = Math.abs(vel.y) * REST
-          } else if (cy > maxY) {
-            cy = maxY
-            vel.y = -Math.abs(vel.y) * REST
-          }
-          pos.x = cx - a.x
-          pos.y = cy - a.y
-
-          const speed = Math.hypot(vel.x, vel.y)
-          if (speed > MAX_SPEED) {
-            vel.x *= MAX_SPEED / speed
-            vel.y *= MAX_SPEED / speed
-          }
-          energy += (Math.min(speed / 1400, 1) - energy) * Math.min(dt * 6, 1)
-
-          // squash & stretch along the direction of travel
-          const stretch = Math.min(speed / 2600, 0.14)
-          const deg = (Math.atan2(vel.y, vel.x) * 180) / Math.PI
-          canvas.style.transform =
-            `translate3d(${(cx - radius).toFixed(2)}px, ${(cy - radius).toFixed(2)}px, 0) ` +
-            `rotate(${deg.toFixed(2)}deg) scale(${(1 + stretch).toFixed(4)}, ${(1 - stretch * 0.7).toFixed(4)}) ` +
-            `rotate(${(-deg).toFixed(2)}deg)`
-          gl.uniform1f(uEnergy, energy)
+          // soft spring home
+          vel.x += (-SPRING * pos.x - DAMP * vel.x) * dt
+          vel.y += (-SPRING * pos.y - DAMP * vel.y) * dt
+          pos.x += vel.x * dt
+          pos.y += vel.y * dt
         }
 
-        if (parked) {
-          canvas.style.transform =
-            `translate3d(${(a.x - radius).toFixed(2)}px, ${(a.y - radius).toFixed(2)}px, 0)`
-          gl.uniform1f(uEnergy, energy)
+        // window edges are walls; the wall margin accounts for the
+        // squash-and-stretch AABB so a speeding orb never spills the page
+        let cx = a.x + pos.x
+        let cy = a.y + pos.y
+        const rad = (Math.atan2(vel.y, vel.x) * Math.PI) / 180
+        const ca = Math.abs(Math.cos(rad))
+        const sa = Math.abs(Math.sin(rad))
+        const st = Math.min(Math.hypot(vel.x, vel.y) / 2600, 0.14)
+        const halfW = radius * ((1 + st) * ca + (1 - st * 0.7) * sa)
+        const halfH = radius * ((1 + st) * sa + (1 - st * 0.7) * ca)
+        const minX = halfW
+        const maxX = window.innerWidth - halfW
+        const minY = halfH
+        const maxY = window.innerHeight - halfH
+        if (cx < minX) {
+          cx = minX
+          vel.x = Math.abs(vel.x) * REST
+        } else if (cx > maxX) {
+          cx = maxX
+          vel.x = -Math.abs(vel.x) * REST
         }
+        if (cy < minY) {
+          cy = minY
+          vel.y = Math.abs(vel.y) * REST
+        } else if (cy > maxY) {
+          cy = maxY
+          vel.y = -Math.abs(vel.y) * REST
+        }
+        pos.x = cx - a.x
+        pos.y = cy - a.y
+
+        const speed = Math.hypot(vel.x, vel.y)
+        if (speed > MAX_SPEED) {
+          vel.x *= MAX_SPEED / speed
+          vel.y *= MAX_SPEED / speed
+        }
+        energy += (Math.min(speed / 1400, 1) - energy) * Math.min(dt * 6, 1)
+
+        // squash & stretch along the direction of travel
+        const stretch = Math.min(speed / 2600, 0.14)
+        const deg = (Math.atan2(vel.y, vel.x) * 180) / Math.PI
+        canvas.style.transform =
+          `translate3d(${(cx - radius).toFixed(2)}px, ${(cy - radius).toFixed(2)}px, 0) ` +
+          `rotate(${deg.toFixed(2)}deg) scale(${(1 + stretch).toFixed(4)}, ${(1 - stretch * 0.7).toFixed(4)}) ` +
+          `rotate(${(-deg).toFixed(2)}deg)`
+        gl.uniform1f(uEnergy, energy)
       }
 
       gl.uniform1f(uTime, t)
