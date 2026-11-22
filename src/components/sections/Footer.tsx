@@ -50,7 +50,7 @@ const SOCIALS = [
  */
 export default function Footer() {
   return (
-    <footer className="relative min-h-[88vh] overflow-hidden bg-ink">
+    <footer data-section="footer" className="section-scope relative min-h-[88vh] overflow-hidden bg-ink">
       {/* top fade: the page above dissolves into the scene, no hard seam */}
       <div
         aria-hidden="true"

@@ -17,7 +17,7 @@ export default function Senate() {
   const [status, setStatus] = useState<"idle" | "sent">("idle");
 
   return (
-    <section id="senate" className="travertine-bg text-ink py-28 md:py-36">
+    <section id="senate" data-section="senate" className="section-scope travertine-bg text-ink py-28 md:py-36">
       <div className="mx-auto max-w-4xl px-6">
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-terra-deep mb-4">
           {numeralFor("senate")} — The Senate

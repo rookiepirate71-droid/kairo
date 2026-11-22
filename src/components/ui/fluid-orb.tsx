@@ -329,6 +329,7 @@ const FluidOrb = ({
       window.addEventListener('pointercancel', onUp)
     }
 
+    let parked = false
     const frame = (now: number) => {
       const dt = Math.min((now - prev) / 1000, 0.032)
       prev = now
@@ -341,7 +342,7 @@ const FluidOrb = ({
         // anchor, so it can never haunt the rest of the page.
         const sec = (sectionEl ?? rootRef.current)?.getBoundingClientRect() ??
           { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight }
-        const parked = sec.bottom <= 0 || sec.top >= window.innerHeight
+        parked = sec.bottom <= 0 || sec.top >= window.innerHeight
 
         if (parked) {
           pos.x = 0
@@ -372,7 +373,7 @@ const FluidOrb = ({
         // squash-and-stretch AABB so a speeding orb never leaves the section
         let cx = a.x + pos.x
         let cy = a.y + pos.y
-        const rad = (Math.atan2(vel.y, vel.x) * Math.PI) / 180
+        const rad = Math.atan2(vel.y, vel.x)
         const ca = Math.abs(Math.cos(rad))
         const sa = Math.abs(Math.sin(rad))
         const st = Math.min(Math.hypot(vel.x, vel.y) / 2600, 0.14)
@@ -416,8 +417,12 @@ const FluidOrb = ({
         gl.uniform1f(uEnergy, energy)
       }
 
-      gl.uniform1f(uTime, t)
-      gl.drawArrays(gl.TRIANGLES, 0, 6)
+      // parked off-screen the orb is invisible: skip the draw so the resting
+      // loop never chews the GPU while the access section is away
+      if (!parked) {
+        gl.uniform1f(uTime, t)
+        gl.drawArrays(gl.TRIANGLES, 0, 6)
+      }
       if (!reduce) raf = requestAnimationFrame(frame)
     }
     frame(start)

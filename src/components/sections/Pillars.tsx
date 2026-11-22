@@ -102,7 +102,7 @@ function ProductMock() {
 
 export default function Pillars() {
   return (
-    <section id="pillars" className="coffer-bg py-28 md:py-36">
+    <section id="pillars" data-section="pillars" className="section-scope coffer-bg py-28 md:py-36">
       <div className="mx-auto max-w-7xl px-6">
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-oxidized mb-4">
           {numeralFor("pillars")} — The Six Pillars

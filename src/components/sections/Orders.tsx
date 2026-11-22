@@ -477,7 +477,7 @@ export default function Orders() {
   const liveId = useId();
 
   return (
-    <section id="orders" className="bg-ink py-28 md:py-36">
+    <section id="orders" data-section="orders" className="section-scope bg-ink py-28 md:py-36">
       <div className="mx-auto max-w-7xl px-6">
         <div className="text-center mb-12">
           <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold mb-4">

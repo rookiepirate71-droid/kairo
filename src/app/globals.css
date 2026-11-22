@@ -147,6 +147,15 @@ h3 {
   outline-offset: 3px;
 }
 
+/* Section isolation: every page section carries this class. Layout+paint+style
+   containment makes the section its own stacking context and clipping box, so
+   one section's absolute overlays, z-index values or transformed decorations
+   can never bleed into a neighbouring section. */
+.section-scope {
+  contain: layout paint style;
+  isolation: isolate;
+}
+
 /* meander (greek key): a masked tile, so colour follows `color`.
    Add aria-hidden="true" on the element. 16x12 tile, seamless on repeat-x. */
 .meander-strip {

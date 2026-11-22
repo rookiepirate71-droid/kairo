@@ -1,0 +1,15 @@
+{
+  "components/webgl/HeroCanvas.tsx -> ./MarbleScene": {
+    "id": 1644,
+    "files": [
+      "static/chunks/644.2fc21c2920159b57.js"
+    ]
+  },
+  "components/webgl/MarbleScene.tsx -> three": {
+    "id": 4091,
+    "files": [
+      "static/chunks/40f94348.710e640560d163c3.js",
+      "static/chunks/cd2bc502.64ceab769f1270e1.js"
+    ]
+  }
+}

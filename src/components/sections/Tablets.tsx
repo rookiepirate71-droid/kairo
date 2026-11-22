@@ -31,7 +31,7 @@ export default function Tablets() {
   }, [emblaApi, prev, next]);
 
   return (
-    <section id="tablets" className="travertine-bg text-ink py-28 md:py-36 overflow-hidden">
+    <section id="tablets" data-section="tablets" className="section-scope travertine-bg text-ink py-28 md:py-36 overflow-hidden">
       <div className="mx-auto max-w-5xl px-6">
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-terra-deep mb-4">
           {numeralFor("tablets")} — Tablets of the Customers

@@ -33,7 +33,7 @@ export default function Tesserae() {
   }, [emblaApi, prev, next]);
 
   return (
-    <section id="tesserae" className="bg-ink py-28 md:py-36">
+    <section id="tesserae" data-section="tesserae" className="section-scope bg-ink py-28 md:py-36">
       <div className="mx-auto max-w-7xl px-6">
         <div className="mb-12 flex flex-wrap items-end justify-between gap-6">
           <div>

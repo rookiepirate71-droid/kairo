@@ -49,7 +49,8 @@ export default function ParallaxTemple() {
     <section
       ref={rootRef}
       id="temple"
-      className="relative h-[70vh] min-h-[480px] overflow-hidden bg-ink"
+      data-section="temple"
+      className="section-scope relative h-[70vh] min-h-[480px] overflow-hidden bg-ink"
       aria-label="Pixel-art temple with the command center inside"
     >
       <svg

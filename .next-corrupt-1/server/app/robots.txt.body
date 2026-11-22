@@ -1,0 +1,4 @@
+User-Agent: *
+Allow: /
+
+Sitemap: https://oraculum.example.com/sitemap.xml

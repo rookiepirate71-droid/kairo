@@ -21,7 +21,8 @@ export default function Hero() {
     <section
       ref={sectionRef}
       id="top"
-      className="relative flex min-h-[100svh] items-center justify-center overflow-hidden"
+      data-section="hero"
+      className="section-scope relative flex min-h-[100svh] items-center justify-center overflow-hidden"
     >
       <HeroCanvas />
 

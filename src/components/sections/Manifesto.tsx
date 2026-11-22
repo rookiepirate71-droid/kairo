@@ -48,7 +48,8 @@ export default function Manifesto() {
     <section
       ref={rootRef}
       id="manifesto"
-      className="travertine-bg text-ink py-28 md:py-40"
+      data-section="manifesto"
+      className="section-scope travertine-bg text-ink py-28 md:py-40"
     >
       <div className="mx-auto max-w-3xl px-6">
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-terra-deep mb-10">

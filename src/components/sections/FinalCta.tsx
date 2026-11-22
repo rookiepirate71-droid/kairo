@@ -22,7 +22,7 @@ export default function FinalCta() {
   };
 
   return (
-    <section id="access" className="coffer-bg py-32 md:py-44">
+    <section id="access" data-section="access" className="section-scope coffer-bg py-32 md:py-44">
       <div className="mx-auto max-w-2xl px-6 text-center">
         <div className="flex justify-center" aria-hidden="true">
           <FluidOrb
