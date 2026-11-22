@@ -223,18 +223,21 @@ const FluidOrb = ({
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const start = performance.now()
 
-    // ---- physics: the browser window is the environment ----
-    // the orb is a mass on a soft spring anchored at its layout spot;
-    // the cursor can grab it, shove it or throw it, and the viewport
-    // edges are walls it bounces off until the spring pulls it home
+    // ---- physics: the orb's section is the environment ----
+    // the orb is a mass on a soft spring anchored at its layout spot in the
+    // access section; the cursor can grab it, shove it or throw it, and the
+    // section's edges are the walls it bounces off until the spring pulls it
+    // home. Off-screen it rests, so it never wanders the rest of the page.
+    const sectionEl =
+      rootRef.current?.closest('section') ?? rootRef.current?.parentElement
     const radius = size / 2
     const SPRING = 14 // spring stiffness (s^-2) — soft, so the return is slow
     const DAMP = 2.6 // spring damping — low enough for a gentle overshoot
     const REST = 0.72 // wall restitution
     const MAX_SPEED = 3000
 
-    let pos = { x: 0, y: 0 } // offset from the anchor, CSS px
-    let vel = { x: 0, y: 0 }
+    const pos = { x: 0, y: 0 } // offset from the anchor, CSS px
+    const vel = { x: 0, y: 0 }
     let energy = 0
     let dragging = false
     let grab = { x: 0, y: 0 }
@@ -253,6 +256,10 @@ const FluidOrb = ({
     }
 
     const onDown = (e: PointerEvent) => {
+      // the orb only answers inside its section
+      if (!sectionEl) return
+      const sr = sectionEl.getBoundingClientRect()
+      if (e.clientY < sr.top || e.clientY > sr.bottom) return
       const a = anchorCenter()
       const cx = a.x + pos.x
       const cy = a.y + pos.y
@@ -281,7 +288,11 @@ const FluidOrb = ({
 
       if (dragging) return
 
-      // shove: a fast cursor crossing the orb transfers momentum
+      // shove: a fast cursor crossing the orb transfers momentum —
+      // only while the orb's section is on screen
+      if (!sectionEl) return
+      const sr = sectionEl.getBoundingClientRect()
+      if (sr.bottom <= 0 || sr.top >= window.innerHeight) return
       const a = anchorCenter()
       const d = Math.hypot(e.clientX - (a.x + pos.x), e.clientY - (a.y + pos.y))
       const reach = radius + 18
@@ -325,11 +336,20 @@ const FluidOrb = ({
       const a = anchorCenter()
 
       if (!reduce) {
-        // always on: the window is the orb's environment no matter which
-        // section is on screen. The anchor rides with the page, so when you
-        // scroll away the walls hold the orb at the window edge nearest its
-        // home, and the spring walks it back as the section returns.
-        if (dragging) {
+        // the orb lives only inside its own section (VIII — Access): the
+        // section's box is the environment. Off-screen the sim rests at the
+        // anchor, so it can never haunt the rest of the page.
+        const sec = (sectionEl ?? rootRef.current)?.getBoundingClientRect() ??
+          { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight }
+        const parked = sec.bottom <= 0 || sec.top >= window.innerHeight
+
+        if (parked) {
+          pos.x = 0
+          pos.y = 0
+          vel.x = 0
+          vel.y = 0
+          energy += (0 - energy) * Math.min(dt * 6, 1)
+        } else if (dragging) {
           // the orb tracks the pointer directly; the velocity it keeps on
           // release is smoothed from that motion, so throws feel weighted
           const tx = lastPtr.x + grab.x - a.x
@@ -348,8 +368,8 @@ const FluidOrb = ({
           pos.y += vel.y * dt
         }
 
-        // window edges are walls; the wall margin accounts for the
-        // squash-and-stretch AABB so a speeding orb never spills the page
+        // the section's edges are the walls; the margin accounts for the
+        // squash-and-stretch AABB so a speeding orb never leaves the section
         let cx = a.x + pos.x
         let cy = a.y + pos.y
         const rad = (Math.atan2(vel.y, vel.x) * Math.PI) / 180
@@ -358,10 +378,10 @@ const FluidOrb = ({
         const st = Math.min(Math.hypot(vel.x, vel.y) / 2600, 0.14)
         const halfW = radius * ((1 + st) * ca + (1 - st * 0.7) * sa)
         const halfH = radius * ((1 + st) * sa + (1 - st * 0.7) * ca)
-        const minX = halfW
-        const maxX = window.innerWidth - halfW
-        const minY = halfH
-        const maxY = window.innerHeight - halfH
+        const minX = Math.max(sec.left + halfW, halfW)
+        const maxX = Math.min(sec.right - halfW, window.innerWidth - halfW)
+        const minY = Math.max(sec.top + halfH, halfH)
+        const maxY = Math.min(sec.bottom - halfH, window.innerHeight - halfH)
         if (cx < minX) {
           cx = minX
           vel.x = Math.abs(vel.x) * REST
