@@ -126,7 +126,7 @@ void main() {
 
   gl_FragColor = vec4(col * inside, inside);
 }
-`
+`;
 
 function hexToRgb(hex: string): [number, number, number] {
   let h = hex.replace('#', '').trim()
