@@ -303,6 +303,11 @@ export default function TierCanvas({
         return s;
       };
 
+      // a context the GPU already dropped can never compile — bail quietly and
+      // let the CSS fallback card show instead of spamming the console
+      if (gl!.isContextLost()) {
+        return;
+      }
       let program: WebGLProgram;
       try {
         program = gl!.createProgram()!;
@@ -313,7 +318,9 @@ export default function TierCanvas({
           throw new Error(gl!.getProgramInfoLog(program) ?? "link failed");
         }
       } catch (err) {
-        console.error("[TierCanvas] shader program failed:", err);
+        if (!gl!.isContextLost()) {
+          console.error("[TierCanvas] shader program failed:", err);
+        }
         return; // DOM fallback card stays
       }
       if (disposed) return;
