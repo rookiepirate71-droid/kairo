@@ -250,13 +250,17 @@ h3 {
   font-weight: 500;
 }
 
-/* floating drift for decorative orbs */
+/* floating drift for decorative orbs — rise, sway and roll like a
+   weightless marble; the shader's liquid silhouette does the rest */
 @keyframes orb-float {
   0%,
   100% {
-    transform: translateY(0) scale(1);
+    transform: translateY(0) translateX(0) rotate(0deg) scale(1);
   }
-  50% {
-    transform: translateY(-14px) scale(1.03);
+  33% {
+    transform: translateY(-14px) translateX(5px) rotate(1.4deg) scale(1.02);
+  }
+  66% {
+    transform: translateY(-6px) translateX(-4px) rotate(-1.1deg) scale(1.035);
   }
 }
