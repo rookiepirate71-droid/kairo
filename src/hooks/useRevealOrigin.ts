@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 export interface RevealOrigin {
   /** 0..1 within the card, origin of the flood */
@@ -13,12 +13,18 @@ export interface RevealOrigin {
  * pointerenter, or the card centre on keyboard focus / tap. Returns a ref to
  * the current origin plus a ref holding the last event type, so the canvas
  * can distinguish touch taps (which must ignore pointerleave).
+ *
+ * Listeners attach to the card element itself (pass a ref to it), so
+ * `e.currentTarget` is always that card.
  */
-export function useRevealOrigin() {
+export function useRevealOrigin(cardRef: RefObject<HTMLElement | null>) {
   const originRef = useRef<RevealOrigin>({ x: 0.5, y: 0.5 });
   const sourceRef = useRef<"pointer" | "focus" | "tap">("pointer");
 
   useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return undefined;
+
     const handler = (e: PointerEvent | FocusEvent) => {
       const target = e.currentTarget as HTMLElement | null;
       if (!target) return;
@@ -44,15 +50,14 @@ export function useRevealOrigin() {
         originRef.current = { x: 0.5, y: 0.85 };
       }
     };
-    // listeners are attached by the card element via ref delegation
     const opts = { passive: true } as AddEventListenerOptions;
-    window.addEventListener("pointermove", handler as EventListener, opts);
-    window.addEventListener("focusin", handler as EventListener, opts);
+    card.addEventListener("pointermove", handler as EventListener, opts);
+    card.addEventListener("focusin", handler as EventListener, opts);
     return () => {
-      window.removeEventListener("pointermove", handler as EventListener);
-      window.removeEventListener("focusin", handler as EventListener);
+      card.removeEventListener("pointermove", handler as EventListener);
+      card.removeEventListener("focusin", handler as EventListener);
     };
-  }, []);
+  }, [cardRef]);
 
   return { originRef, sourceRef };
 }
