@@ -24,12 +24,17 @@ export default function FinalCta() {
   return (
     <section id="access" data-section="access" className="section-scope coffer-bg py-32 md:py-44">
       <div className="mx-auto max-w-2xl px-6 text-center">
-        <div className="flex justify-center" aria-hidden="true">
-          <FluidOrb
-            size={170}
-            color="#b5532f"
-            className="animate-[orb-float_7s_ease-in-out_infinite]"
-          />
+        <div className="group flex justify-center" aria-hidden="true">
+          <div className="relative flex justify-center">
+            <span
+              className="pointer-events-none absolute inset-[-30%] rounded-full bg-gold/25 opacity-0 blur-2xl transition-opacity duration-300 ease-out group-hover:opacity-100"
+            />
+            <FluidOrb
+              size={170}
+              color="#b5532f"
+              className="animate-[orb-float_7s_ease-in-out_infinite]"
+            />
+          </div>
         </div>
         <p className="mt-10 font-mono text-[11px] uppercase tracking-[0.3em] text-oxidized mb-6">
           {numeralFor("access")} — The Final Word

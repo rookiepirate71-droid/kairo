@@ -26,7 +26,6 @@ precision mediump float;
 uniform vec2 u_resolution;
 uniform float u_time;
 uniform vec3 u_color;
-uniform float u_energy; // 0..1, eased up while the orb is hovered
 
 // sin-free hash (Hoskins) — same constant as MarbleScene/TierCanvas, stable on mobile
 float hash(vec2 p) {
@@ -72,7 +71,7 @@ float ridged(vec2 p) {
 // first-order flow warp (the site's fluid primitive): the field advects
 // itself over time, so the marble interior moves like liquid, not drift
 vec2 flow(vec2 p) {
-  float t = u_time * (0.06 + 0.05 * u_energy);
+  float t = u_time * 0.06;
   vec2 q = vec2(fbm(p + vec2(0.0, t)), fbm(p + vec2(5.2, t * 0.8)));
   return p + 0.75 * vec2(fbm(p + 4.0 * q), fbm(p + 4.0 * q + 8.3));
 }
@@ -85,7 +84,7 @@ void main() {
 
   // ---- liquid silhouette: the radius itself breathes with the flow field ----
   float lobes = fbm(p * 3.0 + u_time * 0.14);
-  float ripple = (0.014 + 0.022 * u_energy) * sin(5.0 * ang - u_time * (0.9 + 2.2 * u_energy));
+  float ripple = 0.014 * sin(5.0 * ang - u_time * 0.9);
   float R = 0.46 + 0.05 * (lobes - 0.5) + ripple;
   float edge = R - r; // >0 inside
   float inside = smoothstep(0.0, 0.006, edge);
@@ -155,11 +154,8 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
   return shader
 }
 
-// Idle churn of the liquid when nobody is near; hover eases it up so the
-// marble visibly "stirs" under the cursor, then settles back down.
-const IDLE_ENERGY = 0.07
-const HOVER_ENERGY = 0.55
-
+// The orb never reacts to the cursor: one self-contained liquid loop, and a
+// single still frame under reduced motion.
 const FluidOrb = ({
   size = 240,
   color = '#1A73F2',
@@ -203,7 +199,6 @@ const FluidOrb = ({
 
     const uResolution = gl.getUniformLocation(program, 'u_resolution')
     const uTime = gl.getUniformLocation(program, 'u_time')
-    const uEnergy = gl.getUniformLocation(program, 'u_energy')
     gl.uniform3f(gl.getUniformLocation(program, 'u_color'), ...hexToRgb(color))
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -215,21 +210,11 @@ const FluidOrb = ({
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    let hovered = false
-    let energy = IDLE_ENERGY
     const start = performance.now()
-    let prev = start
     let raf = 0
 
     const draw = (now: number) => {
       const t = (now - start) / 1000
-      const dt = Math.min((now - prev) / 1000, 0.05)
-      prev = now
-
-      // hover stirs the liquid; the ease makes it read as momentum, not a switch
-      const target = hovered ? HOVER_ENERGY : IDLE_ENERGY
-      energy += (target - energy) * Math.min(dt * 3.2, 1)
-      gl.uniform1f(uEnergy, energy)
 
       gl.uniform1f(uTime, t)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
@@ -260,19 +245,8 @@ const FluidOrb = ({
     }
     raf = requestAnimationFrame(frame)
 
-    const onEnter = () => {
-      hovered = true
-    }
-    const onLeave = () => {
-      hovered = false
-    }
-    canvas.addEventListener('pointerenter', onEnter)
-    canvas.addEventListener('pointerleave', onLeave)
-
     return () => {
       cancelAnimationFrame(raf)
-      canvas.removeEventListener('pointerenter', onEnter)
-      canvas.removeEventListener('pointerleave', onLeave)
       gl.deleteProgram(program)
       gl.deleteShader(vert)
       gl.deleteShader(frag)
