@@ -5,6 +5,7 @@ import {
   EXPLORE_ITEMS,
   numeralFor,
 } from "@/lib/constants";
+import { asset } from "@/lib/asset";
 
 /** Most Consulted strip — mirrors a "most visited" row of the library. */
 export default function MostConsulted() {
@@ -23,7 +24,7 @@ export default function MostConsulted() {
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-sm border border-stone/40">
                 {item.image && (
                   <Image
-                    src={item.image}
+                    src={asset(item.image)}
                     alt={item.imageAlt ?? item.title}
                     fill
                     sizes="48px"

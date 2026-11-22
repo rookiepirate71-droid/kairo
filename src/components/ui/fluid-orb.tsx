@@ -1,7 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import React, { useEffect, useRef } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -27,7 +26,7 @@ precision mediump float;
 uniform vec2 u_resolution;
 uniform float u_time;
 uniform vec3 u_color;
-uniform float u_energy; // 0..1, driven by the physics sim's speed
+uniform float u_energy; // 0..1, eased up while the orb is hovered
 
 // sin-free hash (Hoskins) — same constant as MarbleScene/TierCanvas, stable on mobile
 float hash(vec2 p) {
@@ -73,7 +72,7 @@ float ridged(vec2 p) {
 // first-order flow warp (the site's fluid primitive): the field advects
 // itself over time, so the marble interior moves like liquid, not drift
 vec2 flow(vec2 p) {
-  float t = u_time * 0.06;
+  float t = u_time * (0.06 + 0.05 * u_energy);
   vec2 q = vec2(fbm(p + vec2(0.0, t)), fbm(p + vec2(5.2, t * 0.8)));
   return p + 0.75 * vec2(fbm(p + 4.0 * q), fbm(p + 4.0 * q + 8.3));
 }
@@ -156,6 +155,11 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
   return shader
 }
 
+// Idle churn of the liquid when nobody is near; hover eases it up so the
+// marble visibly "stirs" under the cursor, then settles back down.
+const IDLE_ENERGY = 0.07
+const HOVER_ENERGY = 0.55
+
 const FluidOrb = ({
   size = 240,
   color = '#1A73F2',
@@ -164,17 +168,6 @@ const FluidOrb = ({
   ...props
 }: FluidOrbProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  // the roaming canvas is portaled to <body> while physics is active: an
-  // element fixed inside the root would actually be fixed to the root (the
-  // orb-float animation puts a transform on it) and could still widen the
-  // document; portaled to body it can never add scrollable overflow
-  const [floatHost, setFloatHost] = useState<HTMLElement | null>(null)
-  useEffect(() => {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (!reduce) setFloatHost(document.body)
-  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -221,236 +214,74 @@ const FluidOrb = ({
     gl.uniform2f(uResolution, px, px)
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    let hovered = false
+    let energy = IDLE_ENERGY
     const start = performance.now()
-
-    // ---- physics: the orb's section is the environment ----
-    // the orb is a mass on a soft spring anchored at its layout spot in the
-    // access section; the cursor can grab it, shove it or throw it, and the
-    // section's edges are the walls it bounces off until the spring pulls it
-    // home. Off-screen it rests, so it never wanders the rest of the page.
-    const sectionEl =
-      rootRef.current?.closest('section') ?? rootRef.current?.parentElement
-    const radius = size / 2
-    const SPRING = 14 // spring stiffness (s^-2) — soft, so the return is slow
-    const DAMP = 2.6 // spring damping — low enough for a gentle overshoot
-    const REST = 0.72 // wall restitution
-    const MAX_SPEED = 3000
-
-    const pos = { x: 0, y: 0 } // offset from the anchor, CSS px
-    const vel = { x: 0, y: 0 }
-    let energy = 0
-    let dragging = false
-    let grab = { x: 0, y: 0 }
-    let lastPtr = { x: 0, y: 0, t: performance.now() }
-    let ptrVel = { x: 0, y: 0 }
     let prev = start
     let raf = 0
 
-    // the anchor is the untransformed root's centre; the CSS float bob on
-    // the root rides along, so the resting orb still breathes
-    const anchorCenter = () => {
-      const r = rootRef.current?.getBoundingClientRect()
-      return r
-        ? { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-        : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-    }
-
-    const onDown = (e: PointerEvent) => {
-      // the orb only answers inside its section
-      if (!sectionEl) return
-      const sr = sectionEl.getBoundingClientRect()
-      if (e.clientY < sr.top || e.clientY > sr.bottom) return
-      const a = anchorCenter()
-      const cx = a.x + pos.x
-      const cy = a.y + pos.y
-      if (Math.hypot(e.clientX - cx, e.clientY - cy) > radius + 14) return
-      dragging = true
-      try {
-        canvas.setPointerCapture(e.pointerId)
-      } catch {}
-      grab = { x: cx - e.clientX, y: cy - e.clientY }
-      lastPtr = { x: e.clientX, y: e.clientY, t: performance.now() }
-      ptrVel = { x: 0, y: 0 }
-      canvas.style.cursor = 'grabbing'
-      e.preventDefault()
-    }
-
-    const onMove = (e: PointerEvent) => {
-      const now = performance.now()
-      const dt = Math.max((now - lastPtr.t) / 1000, 0.001)
-      const inst = {
-        x: (e.clientX - lastPtr.x) / dt,
-        y: (e.clientY - lastPtr.y) / dt,
-      }
-      ptrVel.x = ptrVel.x * 0.6 + inst.x * 0.4
-      ptrVel.y = ptrVel.y * 0.6 + inst.y * 0.4
-      lastPtr = { x: e.clientX, y: e.clientY, t: now }
-
-      if (dragging) return
-
-      // shove: a fast cursor crossing the orb transfers momentum —
-      // only while the orb's section is on screen
-      if (!sectionEl) return
-      const sr = sectionEl.getBoundingClientRect()
-      if (sr.bottom <= 0 || sr.top >= window.innerHeight) return
-      const a = anchorCenter()
-      const d = Math.hypot(e.clientX - (a.x + pos.x), e.clientY - (a.y + pos.y))
-      const reach = radius + 18
-      if (d < reach && Math.hypot(ptrVel.x, ptrVel.y) > 240) {
-        const f = Math.min(dt, 0.033) * 12 * (1 - d / reach)
-        vel.x += ptrVel.x * f
-        vel.y += ptrVel.y * f
-      }
-    }
-
-    const onUp = (e: PointerEvent) => {
-      if (!dragging) return
-      dragging = false
-      try {
-        canvas.releasePointerCapture(e.pointerId)
-      } catch {}
-      canvas.style.cursor = 'grab'
-    }
-
-    if (!reduce) {
-      // the roaming canvas is taken out of flow: a fixed element can never
-      // expand the document's scrollable area, whatever the physics does
-      canvas.style.position = 'fixed'
-      canvas.style.left = '0'
-      canvas.style.top = '0'
-      canvas.style.width = `${size}px`
-      canvas.style.height = `${size}px`
-      canvas.style.zIndex = '30'
-      canvas.style.cursor = 'grab'
-      canvas.style.touchAction = 'none'
-      canvas.addEventListener('pointerdown', onDown)
-      window.addEventListener('pointermove', onMove, { passive: true })
-      window.addEventListener('pointerup', onUp)
-      window.addEventListener('pointercancel', onUp)
-    }
-
-    let parked = false
-    const frame = (now: number) => {
-      const dt = Math.min((now - prev) / 1000, 0.032)
+    const draw = (now: number) => {
+      const t = (now - start) / 1000
+      const dt = Math.min((now - prev) / 1000, 0.05)
       prev = now
-      const t = reduce ? 0 : (now - start) / 1000
-      const a = anchorCenter()
 
-      if (!reduce) {
-        // the orb lives only inside its own section (VIII — Access): the
-        // section's box is the environment. Off-screen the sim rests at the
-        // anchor, so it can never haunt the rest of the page.
-        const sec = (sectionEl ?? rootRef.current)?.getBoundingClientRect() ??
-          { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight }
-        parked = sec.bottom <= 0 || sec.top >= window.innerHeight
+      // hover stirs the liquid; the ease makes it read as momentum, not a switch
+      const target = hovered ? HOVER_ENERGY : IDLE_ENERGY
+      energy += (target - energy) * Math.min(dt * 3.2, 1)
+      gl.uniform1f(uEnergy, energy)
 
-        if (parked) {
-          pos.x = 0
-          pos.y = 0
-          vel.x = 0
-          vel.y = 0
-          energy += (0 - energy) * Math.min(dt * 6, 1)
-        } else if (dragging) {
-          // the orb tracks the pointer directly; the velocity it keeps on
-          // release is smoothed from that motion, so throws feel weighted
-          const tx = lastPtr.x + grab.x - a.x
-          const ty = lastPtr.y + grab.y - a.y
-          const ivx = Math.max(Math.min((tx - pos.x) / Math.max(dt, 0.008), 4000), -4000)
-          const ivy = Math.max(Math.min((ty - pos.y) / Math.max(dt, 0.008), 4000), -4000)
-          vel.x = vel.x * 0.4 + ivx * 0.6
-          vel.y = vel.y * 0.4 + ivy * 0.6
-          pos.x = tx
-          pos.y = ty
-        } else {
-          // soft spring home
-          vel.x += (-SPRING * pos.x - DAMP * vel.x) * dt
-          vel.y += (-SPRING * pos.y - DAMP * vel.y) * dt
-          pos.x += vel.x * dt
-          pos.y += vel.y * dt
-        }
-
-        // the section's edges are the walls; the margin accounts for the
-        // squash-and-stretch AABB so a speeding orb never leaves the section
-        let cx = a.x + pos.x
-        let cy = a.y + pos.y
-        const rad = Math.atan2(vel.y, vel.x)
-        const ca = Math.abs(Math.cos(rad))
-        const sa = Math.abs(Math.sin(rad))
-        const st = Math.min(Math.hypot(vel.x, vel.y) / 2600, 0.14)
-        const halfW = radius * ((1 + st) * ca + (1 - st * 0.7) * sa)
-        const halfH = radius * ((1 + st) * sa + (1 - st * 0.7) * ca)
-        const minX = Math.max(sec.left + halfW, halfW)
-        const maxX = Math.min(sec.right - halfW, window.innerWidth - halfW)
-        const minY = Math.max(sec.top + halfH, halfH)
-        const maxY = Math.min(sec.bottom - halfH, window.innerHeight - halfH)
-        if (cx < minX) {
-          cx = minX
-          vel.x = Math.abs(vel.x) * REST
-        } else if (cx > maxX) {
-          cx = maxX
-          vel.x = -Math.abs(vel.x) * REST
-        }
-        if (cy < minY) {
-          cy = minY
-          vel.y = Math.abs(vel.y) * REST
-        } else if (cy > maxY) {
-          cy = maxY
-          vel.y = -Math.abs(vel.y) * REST
-        }
-        pos.x = cx - a.x
-        pos.y = cy - a.y
-
-        const speed = Math.hypot(vel.x, vel.y)
-        if (speed > MAX_SPEED) {
-          vel.x *= MAX_SPEED / speed
-          vel.y *= MAX_SPEED / speed
-        }
-        energy += (Math.min(speed / 1400, 1) - energy) * Math.min(dt * 6, 1)
-
-        // squash & stretch along the direction of travel
-        const stretch = Math.min(speed / 2600, 0.14)
-        const deg = (Math.atan2(vel.y, vel.x) * 180) / Math.PI
-        canvas.style.transform =
-          `translate3d(${(cx - radius).toFixed(2)}px, ${(cy - radius).toFixed(2)}px, 0) ` +
-          `rotate(${deg.toFixed(2)}deg) scale(${(1 + stretch).toFixed(4)}, ${(1 - stretch * 0.7).toFixed(4)}) ` +
-          `rotate(${(-deg).toFixed(2)}deg)`
-        gl.uniform1f(uEnergy, energy)
-      }
-
-      // parked off-screen the orb is invisible: skip the draw so the resting
-      // loop never chews the GPU while the access section is away
-      if (!parked) {
-        gl.uniform1f(uTime, t)
-        gl.drawArrays(gl.TRIANGLES, 0, 6)
-      }
-      if (!reduce) raf = requestAnimationFrame(frame)
+      gl.uniform1f(uTime, t)
+      gl.drawArrays(gl.TRIANGLES, 0, 6)
     }
-    frame(start)
+
+    if (reduce) {
+      // a single still frame: the marble reads, nothing moves
+      draw(start)
+      return () => {
+        gl.deleteProgram(program)
+        gl.deleteShader(vert)
+        gl.deleteShader(frag)
+        gl.deleteBuffer(buffer)
+      }
+    }
+
+    const frame = (now: number) => {
+      // skip the draw while the section is off-screen so the resting loop
+      // never chews the GPU
+      const rect = canvas.getBoundingClientRect()
+      const onScreen =
+        rect.bottom > 0 &&
+        rect.top < window.innerHeight &&
+        rect.right > 0 &&
+        rect.left < window.innerWidth
+      if (onScreen) draw(now)
+      raf = requestAnimationFrame(frame)
+    }
+    raf = requestAnimationFrame(frame)
+
+    const onEnter = () => {
+      hovered = true
+    }
+    const onLeave = () => {
+      hovered = false
+    }
+    canvas.addEventListener('pointerenter', onEnter)
+    canvas.addEventListener('pointerleave', onLeave)
 
     return () => {
       cancelAnimationFrame(raf)
-      canvas.removeEventListener('pointerdown', onDown)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-      canvas.style.position = ''
-      canvas.style.left = ''
-      canvas.style.top = ''
-      canvas.style.width = ''
-      canvas.style.height = ''
-      canvas.style.zIndex = ''
-      canvas.style.transform = ''
-      canvas.style.cursor = ''
+      canvas.removeEventListener('pointerenter', onEnter)
+      canvas.removeEventListener('pointerleave', onLeave)
       gl.deleteProgram(program)
       gl.deleteShader(vert)
       gl.deleteShader(frag)
       gl.deleteBuffer(buffer)
     }
-  }, [size, color, floatHost])
+  }, [size, color])
 
   return (
     <div
-      ref={rootRef}
       data-slot="fluid-orb"
       className={cn('relative rounded-full', className)}
       style={{
@@ -460,11 +291,7 @@ const FluidOrb = ({
       }}
       {...props}
     >
-      {floatHost ? (
-        createPortal(<canvas ref={canvasRef} className="h-full w-full" />, floatHost)
-      ) : (
-        <canvas ref={canvasRef} className="h-full w-full" />
-      )}
+      <canvas ref={canvasRef} className="h-full w-full" />
     </div>
   )
 }

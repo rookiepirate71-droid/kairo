@@ -65,7 +65,7 @@ export default function Footer() {
       {/* full-bleed artwork, anchored so the whole composition reads */}
       <div className="absolute inset-0" aria-hidden="true">
         <Image
-          src="/generated/footer-cliff-bright.jpg"
+          src={asset("/generated/footer-cliff-bright.jpg")}
           alt=""
           fill
           sizes="100vw"

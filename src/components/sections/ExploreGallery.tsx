@@ -8,6 +8,7 @@ import {
   type ExploreCategory,
   type ExploreItem,
 } from "@/lib/constants";
+import { asset } from "@/lib/asset";
 import Badge from "@/components/ui/Badge";
 
 function PixelThumb({ pixels }: { pixels: string[] }) {
@@ -49,7 +50,7 @@ function Card({ item }: { item: ExploreItem }) {
       <div className="relative aspect-[4/3] overflow-hidden">
         {item.image ? (
           <Image
-            src={item.image}
+            src={asset(item.image)}
             alt={item.imageAlt ?? item.title}
             fill
             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 40vw, 90vw"

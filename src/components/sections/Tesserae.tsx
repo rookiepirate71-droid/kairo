@@ -4,6 +4,7 @@ import Image from "next/image";
 import useEmblaCarousel from "embla-carousel-react";
 import { useCallback, useEffect } from "react";
 import { useOracleStore } from "@/store/oracle";
+import { asset } from "@/lib/asset";
 import { TESSERAE, numeralFor } from "@/lib/constants";
 import Modal from "@/components/ui/Modal";
 import Badge from "@/components/ui/Badge";
@@ -74,7 +75,7 @@ export default function Tesserae() {
               >
                 <div className="relative aspect-[4/3] overflow-hidden rounded-sm border border-stone/40">
                   <Image
-                    src={item.image}
+                    src={asset(item.image)}
                     alt={item.alt}
                     fill
                     sizes={IMAGE_SIZES}
@@ -97,7 +98,7 @@ export default function Tesserae() {
           <div>
             <div className="relative mb-4 aspect-[4/3] overflow-hidden rounded-sm">
               <Image
-                src={active.image}
+                src={asset(active.image)}
                 alt={active.alt}
                 fill
                 sizes="(min-width: 1024px) 33vw, 85vw"
