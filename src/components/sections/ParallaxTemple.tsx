@@ -373,13 +373,15 @@ export default function ParallaxTemple() {
 
   return (
     <section id="temple" data-section="temple" className="section-scope bg-ink">
+      {/* the pinned stage fills the viewport: no black void below the art
+          while ScrollTrigger holds it for the scrub */}
       <div ref={stageRef} className="overflow-hidden bg-ink">
-        <div className="relative aspect-[4/5] sm:aspect-video">
+        <div className="relative h-[100svh]">
           <canvas
             ref={canvasRef}
             role="img"
             aria-label="Pixel-art Greek temple at dusk, lit by an inner flame, with layered mountains and cypress trees"
-            className="absolute inset-0 h-full w-full [image-rendering:pixelated] object-cover sm:object-fill"
+            className="absolute inset-0 h-full w-full [image-rendering:pixelated] object-cover"
           />
         </div>
       </div>
