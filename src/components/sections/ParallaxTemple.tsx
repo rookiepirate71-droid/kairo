@@ -346,12 +346,13 @@ export default function ParallaxTemple() {
       s.p = 0.5;
       draw();
     } else {
+      // scrub depth from the section's natural travel through the viewport:
+      // no pin, no spacer — the scene parallaxes while it scrolls like any
+      // other section, so there is no lock, void or jump
       st = ScrollTrigger.create({
         trigger: stage,
-        start: "top top",
-        end: "+=120%",
-        pin: true,
-        scrub: 1,
+        start: "top bottom",
+        end: "bottom top",
         onUpdate: (self) => {
           s.p = self.progress;
         },
@@ -373,15 +374,15 @@ export default function ParallaxTemple() {
 
   return (
     <section id="temple" data-section="temple" className="section-scope bg-ink">
-      {/* the pinned stage fills the viewport: no black void below the art
-          while ScrollTrigger holds it for the scrub */}
+      {/* natural aspect box: the full temple (apex included) is always in
+          frame; depth scrubs from scroll, nothing is pinned */}
       <div ref={stageRef} className="overflow-hidden bg-ink">
-        <div className="relative h-[100svh]">
+        <div className="relative aspect-[16/9]">
           <canvas
             ref={canvasRef}
             role="img"
             aria-label="Pixel-art Greek temple at dusk, lit by an inner flame, with layered mountains and cypress trees"
-            className="absolute inset-0 h-full w-full [image-rendering:pixelated] object-cover"
+            className="absolute inset-0 h-full w-full [image-rendering:pixelated]"
           />
         </div>
       </div>
