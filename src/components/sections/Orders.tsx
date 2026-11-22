@@ -1,142 +1,13 @@
 "use client";
 
-import { Fragment, useEffect, useId, useRef, useState } from "react";
+import { Fragment, useId, useState } from "react";
 import { PLANS, COMPARISON, numeralFor } from "@/lib/constants";
-import { Button } from "@/components/ui/Button";
 import Accordion from "@/components/ui/Accordion";
-import { AnimatedCounter } from "@/components/ui/animated-counter";
-import TierCanvas from "@/components/webgl/TierCanvas";
+import TierCard from "@/components/orders/TierCard";
+import { TIERS } from "@/lib/tiers";
 import { useInView } from "@/hooks/useInView";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { cn } from "@/lib/utils";
-
-/* Cards place their six blocks on a shared 6-row grid
-   (capital / name / blurb / price / features / cta) so every tier's rows
-   stay on identical baselines — the brief's 1px alignment criterion. */
-
-/* Column capitals at 3px pixel resolution (96×30 grid), fills from
-   currentColor / --accent / stone so they invert with the card theme.
-   Ornament increases with tier: Tuscan (plain, sturdy) < Ionic (volutes)
-   < Corinthian (two ranks of acanthus). Decorative only. */
-function Capital({ tier }: { tier: "citizen" | "senator" | "emperor" }) {
-  const P = 3; // pixel unit
-  let seq = 0;
-  const px = (x: number, y: number, w: number, h: number, fill: string, o?: number) => (
-    <rect key={`p${seq++}`} x={x * P} y={y * P} width={w * P} height={h * P} fill={fill} opacity={o} />
-  );
-  const INK = "var(--color-stone)";
-  const BODY = "currentColor";
-  const GOLD = "var(--accent)";
-  const DEEP = "var(--color-terra-deep)";
-
-  return (
-    <svg
-      viewBox="0 0 96 30"
-      className="mx-auto block h-8 w-24 text-(--on-surface)"
-      shapeRendering="crispEdges"
-      aria-hidden="true"
-    >
-      {/* ─ abacus + echinus (shared) ─ */}
-      {px(4, 0, 24, 2, INK)}
-      {px(6, 2, 20, 2, BODY, 0.9)}
-      {tier !== "citizen" && px(6, 2, 20, 1, GOLD)}
-
-      {tier === "citizen" && (
-        <>
-          {/* Tuscan: plain cushion, soft taper, four flutes */}
-          {px(8, 4, 16, 3, BODY)}
-          {px(10, 7, 12, 2, BODY, 0.8)}
-          {px(12, 9, 8, 5, BODY)}
-          {px(14, 9, 1, 5, INK, 0.55)}
-          {px(17, 9, 1, 5, INK, 0.55)}
-          {px(20, 9, 1, 5, INK, 0.55)}
-          {px(23, 9, 1, 5, INK, 0.55)}
-        </>
-      )}
-
-      {tier === "senator" && (
-        <>
-          {/* Ionic: egg-and-dart channel between two volutes */}
-          {px(9, 4, 10, 2, BODY)}
-          {px(12, 6, 4, 3, BODY, 0.85)}
-          {[11, 13, 15].map((x) => px(x, 6, 1, 2, GOLD))}
-          {/* volute left: concentric pixel spiral */}
-          {([[4, 6, 5, 5], [5, 7, 3, 3], [6, 8, 1, 1]] as const).map(([x, y, w, h], i) =>
-            px(x, y, w, h, i === 2 ? GOLD : BODY, i === 2 ? 1 : 0.85)
-          )}
-          {/* volute right (mirrored) */}
-          {([[19, 6, 5, 5], [20, 7, 3, 3], [23, 8, 1, 1]] as const).map(([x, y, w, h], i) =>
-            px(x, y, w, h, i === 2 ? GOLD : BODY, i === 2 ? 1 : 0.85)
-          )}
-          {/* fluted shaft stub */}
-          {px(12, 9, 8, 5, BODY)}
-          {px(14, 9, 1, 5, INK, 0.55)}
-          {px(17, 9, 1, 5, INK, 0.55)}
-        </>
-      )}
-
-      {tier === "emperor" && (
-        <>
-          {/* Corinthian: two ranks of acanthus + corner volutes + fleuron */}
-          {px(10, 4, 12, 2, BODY)}
-          {px(11, 6, 10, 2, BODY, 0.8)}
-          {/* upper rank (4 leaves, offset) */}
-          {[13, 16, 19, 22].map((x) => (
-            <g key={`u${x}`}>
-              {px(x, 8, 2, 2, GOLD)}
-              {px(x, 10, 1, 1, DEEP)}
-            </g>
-          ))}
-          {/* lower rank (5 leaves, wider) */}
-          {[12, 15, 18, 21, 24].map((x) => (
-            <g key={`l${x}`}>
-              {px(x - 1, 11, 3, 2, GOLD)}
-              {px(x, 13, 1, 2, DEEP)}
-            </g>
-          ))}
-          {/* corner volutes */}
-          {px(9, 9, 2, 2, BODY, 0.9)}
-          {px(25, 9, 2, 2, BODY, 0.9)}
-          {/* fleuron */}
-          {px(19, 5, 2, 1, GOLD)}
-          {/* fluted shaft stub */}
-          {px(14, 15, 8, 4, BODY)}
-          {px(16, 15, 1, 4, INK, 0.55)}
-          {px(19, 15, 1, 4, INK, 0.55)}
-        </>
-      )}
-    </svg>
-  );
-}
-
-/* Pixel laurel crown badge — gold ground, ink text (≈8:1), fully inside
-   the card's padding box. */
-function LaurelBadge() {
-  return (
-    <span className="inline-flex items-center gap-2 bg-gold px-3 py-1.5 rounded-sm">
-      <svg viewBox="0 0 20 14" className="h-3.5 w-5" shapeRendering="crispEdges" aria-hidden="true">
-        <path d="M4 2h2v2H4zM2 5h2v2H2zM2 8h2v2H2zM4 11h2v2H4zM14 2h2v2h-2zM16 5h2v2h-2zM16 8h2v2h-2zM14 11h2v2h-2z" fill="#0d0c0a" />
-        <rect x="8" y="4" width="4" height="7" fill="#0d0c0a" />
-      </svg>
-      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">
-        Most chosen
-      </span>
-    </span>
-  );
-}
-
-/* Coin glyph beside prices — 1:1 pixel disc that follows the text colour,
-   so it stays visible on both dark and sand cards. */
-function Coin() {
-  return (
-    <svg viewBox="0 0 12 12" className="mr-2 inline-block h-4 w-4 align-baseline text-(--accent)" shapeRendering="crispEdges" aria-hidden="true">
-      <rect x="2" y="0" width="8" height="12" fill="currentColor" />
-      <rect x="0" y="2" width="12" height="8" fill="currentColor" />
-      <rect x="2" y="2" width="8" height="8" fill="var(--color-sand)" />
-      <rect x="4" y="4" width="4" height="4" fill="currentColor" />
-    </svg>
-  );
-}
 
 /* Engraved SPQR-style rule. */
 function SpqrRule({ inverted = false }: { inverted?: boolean }) {
@@ -160,224 +31,6 @@ const LATIN_SUBTITLE: Record<string, string> = {
   citizen: "CIVIS",
   senator: "SENATOR",
   emperor: "IMPERATOR",
-};
-
-/* One tier card: DOM content plus (on WebGL2 devices) the liquid-marble
-   reveal canvas. State per card: hovered (pointer), focused (keyboard),
-   tapped (touch). The DOM text is the accessible, selectable, SEO-visible
-   truth; the canvas paints over it only while the flood covers the card. */
-function RevealCard({
-  plan,
-  hero,
-  price,
-  annual,
-}: {
-  plan: (typeof PLANS)[number];
-  hero: boolean;
-  price: number | null;
-  annual: boolean;
-}) {
-  const [state, setState] = useState<"idle" | "active">("idle");
-  const [webgl2, setWebgl2] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const originRef = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 });
-  const sourceRef = useRef<"pointer" | "focus" | "tap">("pointer");
-  void sourceRef;
-
-  // probe WebGL2 once
-  useEffect(() => {
-    const probe = document.createElement("canvas").getContext("webgl2");
-    setWebgl2(probe !== null);
-    probe?.getExtension("WEBGL_lose_context")?.loseContext();
-  }, []);
-
-  const setOriginFromEvent = (e: React.PointerEvent | React.FocusEvent) => {
-    const el = cardRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    if ("clientX" in e && typeof e.clientX === "number" && e.clientX >= 0) {
-      const pe = e as React.PointerEvent;
-      if (pe.pointerType === "touch") sourceRef.current = "tap";
-      else sourceRef.current = "pointer";
-      originRef.current = {
-        x: (pe.clientX - r.left) / r.width,
-        y: (pe.clientY - r.top) / r.height,
-      };
-    } else {
-      sourceRef.current = "focus";
-      originRef.current = { x: 0.5, y: 0.85 };
-    }
-  };
-
-  const active = state === "active";
-  return (
-    <div
-      ref={cardRef}
-      tabIndex={0}
-      data-theme={hero ? "light" : undefined}
-      aria-label={`${plan.name} plan: ${plan.blurb}`}
-      onPointerEnter={(e) => {
-        setOriginFromEvent(e);
-        setState("active");
-      }}
-      onPointerLeave={() => {
-        if (sourceRef.current === "tap") return; // touch: ignore leave
-        setState("idle");
-      }}
-      onFocus={(e) => {
-        setOriginFromEvent(e);
-        setState("active");
-      }}
-      onBlur={() => setState("idle")}
-      onClick={(e) => {
-        // touch tap: origin from tap, reveal until blur
-        const el = cardRef.current;
-        if (!el || e.clientX === 0) return;
-        const r = el.getBoundingClientRect();
-        sourceRef.current = "tap";
-        originRef.current = {
-          x: (e.clientX - r.left) / r.width,
-          y: (e.clientY - r.top) / r.height,
-        };
-        setState("active");
-      }}
-      className={cn(
-        "group relative grid grid-rows-[auto_auto_auto_auto_1fr_auto] grid-cols-1 rounded-sm p-8 pb-10 outline-none transition-transform duration-300",
-        "hover:-translate-y-1 hover:shadow-[0_0_0_1px_var(--color-gold)]",
-        "focus-visible:-translate-y-1 focus-visible:shadow-[0_0_0_1px_var(--color-gold)]",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)] focus-visible:outline-offset-2",
-        hero
-          ? "bg-sand text-ink shadow-raised md:-translate-y-2 md:hover:-translate-y-3"
-          : "border border-stone/40 bg-charcoal/60"
-      )}
-      style={
-        hero
-          ? ({
-              "--focus-ring": "var(--color-purple)",
-            } as React.CSSProperties)
-          : undefined
-      }
-    >
-      {/* rotating conic gold border on the hero card; static hairline under
-          reduced motion (see globals.css @property --angle) */}
-      {hero && <span aria-hidden="true" className="conic-border" />}
-
-      {/* liquid-marble reveal (skipped entirely without WebGL2 / reduced
-          motion — the DOM card below is the fallback and the truth) */}
-      {webgl2 && (
-        <TierCanvas
-          tier={plan.id as "citizen" | "senator" | "emperor"}
-          active={active}
-          originRef={originRef}
-        />
-      )}
-
-      {/* pixel-art column capital + latin subtitle + meander */}
-      <div className="sr-only">{CAPITAL_ALT[plan.id]}</div>
-      <div className="pt-1">
-        <Capital tier={plan.id as "citizen" | "senator" | "emperor"} />
-        <p data-gl-line className="mt-2 text-center font-mono text-[11px] tracking-[0.3em] text-(--on-surface-muted)">
-          {LATIN_SUBTITLE[plan.id]}
-        </p>
-        <div aria-hidden="true" className="meander-strip mt-3 opacity-30" />
-      </div>
-
-      <h3 data-gl-line className="mt-4 text-center font-display text-3xl text-(--on-surface)">
-        {plan.name}
-      </h3>
-      <p data-gl-line className="mt-2 min-h-[2.5em] text-center text-sm text-(--on-surface-muted)">
-        {plan.blurb}
-      </p>
-      <p
-        className="mt-6 text-center font-display text-5xl text-(--on-surface) [font-variant-numeric:lining-nums_tabular-nums]"
-      >
-        <Coin />
-        {price !== null ? (
-          <>
-            <span data-gl-line className="tabular-nums">
-              <AnimatedCounter
-                value={price}
-                prefix="$"
-                className="tabular-nums"
-                duration={0.3}
-              />
-            </span>
-            <span data-gl-line className="text-base font-sans text-(--on-surface)"> / mo</span>
-            {annual && (
-              <span data-gl-line className="mt-1 block font-sans text-xs text-(--on-surface-muted)">
-                billed annually
-              </span>
-            )}
-          </>
-        ) : (
-          <span data-gl-line className="italic">By rite</span>
-        )}
-      </p>
-
-      <ul className="mt-6 space-y-3 flex-1">
-        {(ROMAN_FEATURES[plan.id] ?? []).map((f) => (
-          <li key={f} className="flex items-start gap-2 text-sm text-(--on-surface-muted)">
-            <span className="mt-0.5 text-(--accent)" aria-hidden="true">
-              ✦
-            </span>
-            <span data-gl-line>{f}</span>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-8">
-        <Button
-          data-gl-line
-          variant={hero ? "primary" : "secondary"}
-          className={cn(
-            "w-full min-h-[48px] rounded-full",
-            "transition-transform duration-200",
-            "hover:scale-[1.03] motion-reduce:transform-none"
-          )}
-        >
-          {plan.cta}
-        </Button>
-      </div>
-
-      {hero && (
-        <div className="mt-4 flex justify-center">
-          <LaurelBadge />
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* Column capital motif per tier, for the sr-only equivalent. */
-const CAPITAL_ALT: Record<string, string> = {
-  citizen: "Tuscan column capital (plain)",
-  senator: "Ionic column capital (scrolls)",
-  emperor: "Corinthian column capital (acanthus)",
-};
-
-/* Feature list per plan — dry Roman voice, facts literal. */
-const ROMAN_FEATURES: Record<string, string[]> = {
-  citizen: [
-    "5 seats included",
-    "20 data sources",
-    "Daily metric refresh",
-    "Community auguries (support)",
-  ],
-  senator: [
-    "25 seats included",
-    "Unlimited sources",
-    "Streaming refresh + alerts",
-    "Lineage on every metric",
-    "Dedicated augur (support)",
-  ],
-  emperor: [
-    "Unlimited seats",
-    "Regional data residency",
-    "SSO / SCIM provisioning",
-    "Bespoke data rites",
-    "Custom onboarding program",
-    "SLA with sacrifice clause",
-  ],
 };
 
 /* Comparison rows feed cards and table from one source (no duplicated copy). */
@@ -541,23 +194,22 @@ export default function Orders() {
           </p>
         </div>
 
-        {/* Cards: one grid, rows pinned by index. The lifted card translates
-            itself, not its row — content stays on the shared baselines.
-            On WebGL2 devices each card carries a TierCanvas that floods the
-            card with liquid marble from the pointer entry point on
-            hover/focus/tap; without WebGL2 or with reduced motion the plain
-            DOM card with the CSS theme swap is the fallback (no canvas). */}
-        <div className="grid gap-6 md:grid-cols-3 items-stretch md:[grid-template-rows:1fr]">
-          {PLANS.map((plan) => {
-            const price = annual ? plan.annual : plan.monthly;
-            const hero = plan.featured === true;
+        {/* Cards: the pack's TierCard — semantic DOM underneath, an opaque
+            WebGL2 canvas painting the liquid-marble flood over it on
+            hover/focus/tap; with reduced motion or no WebGL2 the canvas
+            never mounts and the CSS theme swap is the fallback. */}
+        <div className="grid gap-6 md:grid-cols-3 items-stretch">
+          {TIERS.map((tier) => {
+            const plan = PLANS.find((p) => p.id === tier.id);
             return (
-              <RevealCard
-                key={plan.id}
-                plan={plan}
-                hero={hero}
-                price={price}
-                annual={annual}
+              <TierCard
+                key={tier.id}
+                tier={tier}
+                price={
+                  annual && plan?.annual != null
+                    ? `$${plan.annual.toLocaleString("en-US")}`
+                    : undefined
+                }
               />
             );
           })}

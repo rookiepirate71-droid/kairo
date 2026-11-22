@@ -1,74 +1,87 @@
-/* Per-tier stone palette + motion tuning for the liquid-marble card reveal.
-   Colours are read from CSS tokens at runtime where possible; these fallbacks
-   match globals.css exactly (@theme static keeps them resolveable). */
-
 export type TierId = "citizen" | "senator" | "emperor";
 
-export interface TierTokens {
+export interface Tier {
   id: TierId;
-  /** marble body, dark side of the front */
-  stoneA: string;
-  /** marble body, light side of the front */
-  stoneB: string;
-  /** vein colour */
-  vein: string;
-  /** base-layer text colour (bone) */
-  textBase: string;
-  /** themed-layer text colour (tier foreground) */
-  textTheme: string;
-  /** sinusoidal strata, Citizen only */
-  strata: boolean;
+  latin: string;
+  name: string;
+  tagline: string;
+  price: string;
+  unit: string;
+  features: readonly string[];
+  cta: string;
+  href: string;
+  /** 1 adds sinusoidal strata to the stone (travertine look) */
+  strata: 0 | 1;
 }
 
-export const TIERS: Record<TierId, TierTokens> = {
-  citizen: {
+export interface TierPalette {
+  stone: string;
+  stoneLight: string;
+  vein: string;
+  ink: string;
+  accent: string;
+  baseSurface: string;
+  baseInk: string;
+  baseAccent: string;
+}
+
+export const TIERS: readonly Tier[] = [
+  {
     id: "citizen",
-    stoneA: "#3a3428",
-    stoneB: "#6b5f45",
-    vein: "#a87b36",
-    textBase: "#ede6d6",
-    textTheme: "#f2ead8",
-    strata: true,
+    latin: "CIVIS",
+    name: "Citizen",
+    tagline: "One team, one honest dashboard.",
+    price: "$400",
+    unit: "/ mo",
+    features: ["5 seats included", "20 data sources", "Daily metric refresh"],
+    cta: "REQUEST ACCESS",
+    href: "#access",
+    strata: 1,
   },
-  senator: {
+  {
     id: "senator",
-    stoneA: "#5b1a3a",
-    stoneB: "#8f3f22",
-    vein: "#b08441",
-    textBase: "#ede6d6",
-    textTheme: "#141210",
-    strata: false,
+    latin: "SENATOR",
+    name: "Senator",
+    tagline: "Companies that run the quarter on Oraculum.",
+    price: "$1,200",
+    unit: "/ mo",
+    features: ["25 seats included", "Unlimited sources", "Streaming refresh + alerts"],
+    cta: "REQUEST ACCESS",
+    href: "#access",
+    strata: 0,
   },
-  emperor: {
+  {
     id: "emperor",
-    stoneA: "#141210",
-    stoneB: "#4a453c",
-    vein: "#a87b36",
-    textBase: "#ede6d6",
-    textTheme: "#c8a45c",
-    strata: false,
+    latin: "IMPERATOR",
+    name: "Emperor",
+    tagline: "The empire: residency, SSO/SCIM, bespoke rites.",
+    price: "By rite",
+    unit: "",
+    features: ["Unlimited seats", "Regional data residency", "SLA with sacrifice clause"],
+    cta: "SPEAK TO THE SENATE",
+    href: "#access",
+    strata: 0,
   },
-};
+] as const;
 
-/** Reveal motion: exponential ease rates (1/s). In is slow and gradual — the
-    flood visibly sweeps through 10%, 20%, 30%… over a few seconds; out is
-    quicker so un-hovering doesn't linger. */
-export const REVEAL = {
-  rateIn: 0.6,
-  rateOut: 1.2,
-  /** front wobble frequency multiplier */
-  wobbleFreq: 6.0,
-  /** refraction ripple amplitude, in texture-space units */
-  rippleAmp: 0.012,
-  /** gold-leaf line width, texture units */
-  leafWidth: 0.006,
-  /** cursor sheen strength 0..1 */
-  sheen: 0.25,
-  /** dpr cap for the card canvases */
-  maxDpr: 1.5,
-} as const;
+const HEX = /^#[0-9a-f]{6}$/i;
 
-/** Bayer 4x4 ordered dither matrix, normalised to (n + 0.5) / 16. */
-export const BAYER4 = [
-  0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5,
-].map((n) => (n + 0.5) / 16);
+/** Reads tier tokens from CSS (needs `@theme static` so they are always emitted). */
+export function readPalette(tier: Tier): TierPalette {
+  const cs = getComputedStyle(document.documentElement);
+  const get = (token: string, fallback: string): string => {
+    const raw = cs.getPropertyValue(token).trim();
+    return HEX.test(raw) ? raw : fallback;
+  };
+  const p = `--tier-${tier.id}`;
+  return {
+    stone: get(`${p}-stone`, "#cdbb91"),
+    stoneLight: get(`${p}-stone-light`, "#f0e8d2"),
+    vein: get(`${p}-vein`, "#8f3f22"),
+    ink: get(`${p}-ink`, "#0d0c0a"),
+    accent: get(`${p}-accent`, "#8f3f22"),
+    baseSurface: get("--color-charcoal", "#141210"),
+    baseInk: get("--color-bone", "#ede6d6"),
+    baseAccent: get("--color-gold", "#c8a45c"),
+  };
+}

@@ -28,6 +28,25 @@
   --color-marble: #9e9a8e;
   --color-stone: #4a453c; /* decorative only, fails contrast as text */
 
+  /* tier stones for the liquid reveal (read by WebGL via getComputedStyle) */
+  --tier-citizen-stone: #cdbb91;
+  --tier-citizen-stone-light: #f0e8d2;
+  --tier-citizen-vein: #8f3f22;
+  --tier-citizen-ink: #0d0c0a;
+  --tier-citizen-accent: #8f3f22;
+
+  --tier-senator-stone: #2e0c1f;
+  --tier-senator-stone-light: #6e2144;
+  --tier-senator-vein: #c8a45c;
+  --tier-senator-ink: #ede6d6;
+  --tier-senator-accent: #c8a45c;
+
+  --tier-emperor-stone: #b48a38;
+  --tier-emperor-stone-light: #e8cb83;
+  --tier-emperor-vein: #4a1330;
+  --tier-emperor-ink: #0d0c0a;
+  --tier-emperor-accent: #5b1a3a;
+
   /* radii: cut stone, near-sharp */
   --radius-sm: 0.125rem;
   --radius-md: 0.25rem;
@@ -40,6 +59,7 @@
 :root {
   /* layout */
   --nav-h: 4.5rem;
+  --tier-card-h: 350px;
 
   /* motion */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -257,6 +277,27 @@ h3 {
   padding-right: 0.08em;
   color: var(--accent);
   font-weight: 500;
+}
+
+/* ---- pricing tier card (liquid reveal) ---- */
+.tier-card {
+  position: relative;
+  height: var(--tier-card-h);
+  overflow: hidden;
+  background: var(--color-charcoal);
+  color: var(--color-bone);
+  border: 0.5px solid var(--color-stone);
+  border-radius: var(--radius-sm);
+}
+/* no WebGL2: instant theme swap, no animation */
+.tier-card[data-gl="off"]:is(:hover, :focus-within) {
+  background: var(--tb);
+  color: var(--tf);
+}
+/* WebGL on: the canvas paints the CTA, the real link sits invisibly on top */
+.tier-card[data-gl="on"] .tier-card__cta {
+  color: transparent;
+  border-color: transparent;
 }
 
 /* floating drift for decorative orbs — rise, sway and roll like a
