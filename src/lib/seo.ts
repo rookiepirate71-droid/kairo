@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { asset } from "@/lib/asset";
 
 /** Base URL: set NEXT_PUBLIC_SITE_URL in production; fallback keeps dev sane. */
 export const SITE_URL =
@@ -10,6 +11,7 @@ export function seoFor(
   image = "/generated/tessera-mosaic.jpg",
 ): Metadata {
   const url = `${SITE_URL}/`;
+  const ogImage = asset(image);
   return {
     title,
     description,
@@ -19,13 +21,13 @@ export function seoFor(
       description,
       url,
       siteName: "Oraculum",
-      images: [{ url: image, width: 1200, height: 630, alt: title }],
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [image],
+      images: [ogImage],
     },
   };
 }

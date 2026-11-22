@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { asset } from "@/lib/asset";
 import Link from "next/link";
 
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
@@ -120,7 +121,7 @@ export default function Footer() {
                   className="opacity-90 transition-opacity hover:opacity-100"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={s.icon} alt="" width={22} height={22} />
+                  <img src={asset(s.icon)} alt="" width={22} height={22} />
                 </a>
               ))}
             </div>
