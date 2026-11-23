@@ -91,8 +91,6 @@
   </svg><div id="vis-container"><h2 class="sr-only">The plan comparison table drawn as a Roman papyrus scroll. It unrolls from a wooden rod, with torn edges, glued sheet seams and fibres, and each row inks itself in as the paper passes it.</h2>
 <style>
 .wrap{--serif:var(--font-serif);--sans:var(--font-sans);--mono:var(--font-mono);--ink:#2b2115;--terra:#8f3f22;background:#0d0c0a;border-radius:12px;padding:18px 14px 30px;color:#ede6d6}
-.ctl{display:flex;gap:12px;align-items:center;margin:0 0 22px;font-size:13px;color:#9e9a8e;flex-wrap:wrap}
-.ctl input[type=range]{flex:1;min-width:140px}
 .scroll{position:relative;padding:0 14px}
 .rod{position:relative;height:20px;margin:0 -14px;border-radius:10px;z-index:3;background:#3a2a1c;background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 2px,transparent 2px 9px),linear-gradient(180deg,#7a5a3a 0,#4a3520 38%,#2a1c10 100%)}
 .knob{position:absolute;top:-8px;width:36px;height:36px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7a5a3a,#3a2818 55%,#1c120a)}
@@ -126,7 +124,6 @@ tbody tr.in td.no{opacity:.55}
 @media (prefers-reduced-motion:reduce){tbody th,tbody td{transition:none}}
 </style>
 <div class="wrap">
-<div class="ctl"><button id="play" type="button">Unroll</button><label for="p">Unroll progress</label><input id="p" type="range" min="0" max="100" value="0"><output id="o" for="p">0%</output></div>
 <section class="scroll" id="scroll" aria-label="Tabula Comparationis: plan comparison">
 <div class="rod" aria-hidden="true"><i class="knob l"></i><i class="knob r"></i></div>
 <div class="sheet" id="sheet"><div class="paper" id="paper">
@@ -168,7 +165,7 @@ function papyrus(W,H){
   d[i++]=r;d[i++]=g;d[i++]=b;d[i++]=255}
  return d}
 var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-var paper=document.getElementById('paper'),sheet=document.getElementById('sheet'),roll=document.getElementById('roll'),sl=document.getElementById('p'),out=document.getElementById('o'),playBtn=document.getElementById('play');
+var paper=document.getElementById('paper'),sheet=document.getElementById('sheet'),roll=document.getElementById('roll');
 var rows=[].slice.call(paper.querySelectorAll('tbody tr')),rowEnd=[],hFull=0,url='';
 function texture(){
  var W=960,H=640,c=document.createElement('canvas');c.width=W;c.height=H;
@@ -201,8 +198,6 @@ function play(d){dir=d;if(reduce){p=d>0?1:0;apply();return}cancelAnimationFrame(
 function layout(){tear();measure();apply()}
 texture();layout();
 new ResizeObserver(function(){tear();measure();apply()}).observe(paper);
-sl.addEventListener('input',function(){cancelAnimationFrame(anim);dir=0;p=sl.value/100;apply()});
-playBtn.addEventListener('click',function(){if(p>=1){p=0;apply()}play(1)});
 var started=false;
 new IntersectionObserver(function(es){if(es[0].isIntersecting&&!started){started=true;setTimeout(function(){play(1)},400)}}).observe(document.getElementById('scroll'));
 })();
