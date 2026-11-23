@@ -6,6 +6,7 @@ import Accordion from "@/components/ui/Accordion";
 import TierCard from "@/components/orders/TierCard";
 import { TIERS } from "@/lib/tiers";
 import { cn } from "@/lib/utils";
+import ArtifactFrame from "@/components/ui/ArtifactFrame";
 
 /* Engraved SPQR-style rule. */
 function SpqrRule({ inverted = false }: { inverted?: boolean }) {
@@ -128,12 +129,10 @@ export default function Orders() {
             frame so it renders exactly as the demo. Relative src resolves
             under the GitHub Pages base path (/kairo/). */}
         <div className="mt-16 hidden md:block">
-          <iframe
+          <ArtifactFrame
             src="artifacts/scroll.html"
             title="Tabula Comparationis — plan comparison scroll"
-            className="block w-full border-0"
-            style={{ height: 1150 }}
-            loading="lazy"
+            minHeight={1100}
           />
         </div>
         <div className="mt-12 md:hidden">

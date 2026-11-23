@@ -187,8 +187,7 @@ function apply(){
  sheet.style.height=vis+'px';
  sheet.style.setProperty('--curl',p>=1?0:1);
  roll.style.setProperty('--rh',(24+(1-e)*52)+'px');
- rows.forEach(function(r,i){r.classList.toggle('in',vis>rowEnd[i]+10)});
- sl.value=Math.round(p*100);out.textContent=Math.round(p*100)+'%'}
+ rows.forEach(function(r,i){r.classList.toggle('in',vis>rowEnd[i]+10)})}
 var DUR=6.5,anim=0,last=0,dir=0;
 function tick(now){
  var dt=Math.min((now-last)/1000,.05);last=now;
