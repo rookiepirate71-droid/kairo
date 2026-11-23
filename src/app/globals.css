@@ -248,6 +248,61 @@ h3 {
   filter: url(#parchment-edge);
 }
 
+/* carved-in lettering (tablets carousel): each char starts blurred and
+   raised, then "cuts" into the stone. The stagger delay comes from the
+   per-char --ci custom property set in Tablets.tsx; .carving is applied
+   to the active slide while it is in view. */
+.carve-char {
+  opacity: 0;
+  filter: blur(1.5px);
+  transform: translateY(-3px);
+}
+.carving .carve-char {
+  animation: cut 900ms var(--ease-out-expo) forwards;
+  animation-delay: var(--ci, 0ms);
+}
+@keyframes cut {
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .carve-char {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    animation: none;
+  }
+}
+
+/* ink-in rows (Tabula Comparationis): table rows fade in as the papyrus
+   unrolls past them; the delay per row is an inline --ink-i. */
+.ink-row {
+  opacity: 0;
+  filter: blur(2px);
+  transform: translateY(4px);
+  transition:
+    opacity 600ms var(--ease-out-expo),
+    filter 600ms var(--ease-out-expo),
+    transform 600ms var(--ease-out-expo);
+  transition-delay: var(--ink-i, 0ms);
+}
+[data-unrolled="true"] .ink-row {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ink-row {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    transition: none;
+  }
+}
+
 /* coffered dot grid for Pillars of Memory */
 .coffer-bg {
   background-color: var(--color-ink);
@@ -288,6 +343,24 @@ h3 {
   color: var(--color-bone);
   border: 0.5px solid var(--color-stone);
   border-radius: var(--radius-sm);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.3),
+    0 6px 14px rgb(0 0 0 / 0.18);
+  transition: box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1), transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* the hovered card rises to meet the cursor, shadow spreading beneath it */
+.tier-card:is(:hover, :focus-within) {
+  box-shadow:
+    0 4px 8px rgb(0 0 0 / 0.3),
+    0 24px 44px rgb(0 0 0 / 0.42);
+  transform: translateY(-10px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tier-card,
+  .tier-card:is(:hover, :focus-within) {
+    transition: none;
+    transform: none;
+  }
 }
 /* no WebGL2: instant theme swap, no animation */
 .tier-card[data-gl="off"]:is(:hover, :focus-within) {

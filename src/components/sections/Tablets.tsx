@@ -1,17 +1,154 @@
 "use client";
 
 import useEmblaCarousel from "embla-carousel-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { TABLETS, numeralFor } from "@/lib/constants";
+import { useInView } from "@/hooks/useInView";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { stoneTexture } from "@/lib/stoneTexture";
+import { cn } from "@/lib/utils";
+
+/* tabula ansata: the notched wing shape of a carved Roman tablet */
+const TABULA_CLIP =
+  "polygon(0% 14%, 5% 8%, 5% 0%, 95% 0%, 95% 8%, 100% 14%, 100% 86%, 95% 92%, 95% 100%, 5% 100%, 5% 92%, 0% 86%)";
+
+const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+
+/* Quote split into words → chars for the staggered carve-in. Words stay
+   wrapped so line breaks work; the aria-hidden char layer is doubled by
+   an aria-label on the blockquote for screen readers. */
+function CarvedText({ text }: { text: string }) {
+  let i = 0;
+  return (
+    <span aria-hidden="true">
+      {text.split(" ").map((word, w) => (
+        <span key={w} className="inline-block whitespace-nowrap">
+          {Array.from(word).map((ch, c) => (
+            <span
+              key={c}
+              className="carve-char"
+              style={{ "--ci": `${i++ * 22}ms` } as React.CSSProperties}
+            >
+              {ch}
+            </span>
+          ))}
+          {w < text.split(" ").length - 1 ? (
+            <span
+              className="carve-char"
+              style={{ "--ci": `${i++ * 22}ms` } as React.CSSProperties}
+            >
+              {"\u00a0"}
+            </span>
+          ) : null}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/* Gold dust motes rising off the freshly carved letters (active slide
+   only, skipped for reduced motion). Web Animations API, self-cleaning. */
+function Dust({ active }: { active: boolean }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    const host = ref.current;
+    if (!host || !active || reduced) return;
+    const motes: Animation[] = [];
+    for (let i = 0; i < 10; i++) {
+      const dot = document.createElement("span");
+      const size = 2 + Math.random() * 2;
+      dot.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:var(--color-oxidized,#a98a44);opacity:0;pointer-events:none;left:${8 + Math.random() * 84}%;bottom:${5 + Math.random() * 30}%`;
+      host.appendChild(dot);
+      motes.push(
+        dot.animate(
+          [
+            { opacity: 0, transform: "translateY(0)" },
+            { opacity: 0.7, offset: 0.25 },
+            { opacity: 0, transform: "translateY(-46px)" },
+          ],
+          {
+            duration: 3200 + Math.random() * 2600,
+            delay: Math.random() * 4200,
+            iterations: Infinity,
+          },
+        ),
+      );
+    }
+    return () => {
+      motes.forEach((a) => a.cancel());
+      host.querySelectorAll("span").forEach((d) => d.remove());
+    };
+  }, [active, reduced]);
+  return <span ref={ref} aria-hidden="true" className="absolute inset-0 overflow-hidden" />;
+}
+
+/* One carved tablet: procedural sandstone underlay, carved frame,
+   lettering that cuts in while the slide is active. */
+function TabletSlide({
+  quote,
+  name,
+  role,
+  index,
+  active,
+  carving,
+}: {
+  quote: string;
+  name: string;
+  role: string;
+  index: number;
+  active: boolean;
+  carving: boolean;
+}) {
+  const [texture, setTexture] = useState("");
+  useEffect(() => {
+    setTexture(stoneTexture(index + 1));
+  }, [index]);
+
+  return (
+    <figure
+      className={cn(
+        "relative flex-[0_0_100%] md:flex-[0_0_62%] pl-3 pr-3 transition-all duration-700 ease-[var(--ease-out-expo)]",
+        active ? "scale-100 opacity-100" : "scale-[0.94] opacity-45",
+      )}
+      style={{ clipPath: TABULA_CLIP }}
+      aria-hidden={!active}
+    >
+      <div
+        className="relative border-4 border-double border-terra-deep/60 shadow-raised px-7 py-12 md:px-10 md:py-14"
+        style={texture ? { backgroundImage: `url(${texture})`, backgroundSize: "cover" } : undefined}
+      >
+        <Dust active={active} />
+        <blockquote
+          aria-label={quote}
+          className={cn(
+            "font-display text-xl italic leading-snug md:text-2xl",
+            carving ? "carving" : "",
+            active ? "text-terra-deep" : "text-ink/80",
+          )}
+        >
+          “<CarvedText text={quote} />”
+        </blockquote>
+        <figcaption className="mt-6 font-mono text-[11px] uppercase tracking-[0.2em] text-ink">
+          {name} · {role}
+        </figcaption>
+      </div>
+    </figure>
+  );
+}
 
 /**
- * Testimonial tablet carousel — the merged Inscriptions + Voices section.
- * Each quote is carved on a tablet; maxims stay in the marquee only.
+ * Testimonial tablet carousel — the merged Inscriptions + Voices section,
+ * restyled as carved tabulae ansatae: procedural stone, letters that cut
+ * in, dust, drag + keyboard + dots + Roman counter and progress bar.
  */
 export default function Tablets() {
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: "start" });
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: "center" });
   const [selected, setSelected] = useState(0);
+  const [sectionRef, inView] = useInView<HTMLElement>({ threshold: 0.3 });
+  const reduced = useReducedMotion();
 
+  const pausedRef = useRef(false);
   const prev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
   const next = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
 
@@ -23,15 +160,53 @@ export default function Tablets() {
       if (e.key === "ArrowLeft") prev();
       if (e.key === "ArrowRight") next();
     };
+    const onDrag = () => {
+      pausedRef.current = true;
+    };
+    emblaApi.on("pointerDown", onDrag);
+    emblaApi.on("pointerUp", () => {
+      pausedRef.current = false;
+    });
     document.addEventListener("keydown", onKey);
     return () => {
       emblaApi.off("select", onSelect);
+      emblaApi.off("pointerDown", onDrag);
       document.removeEventListener("keydown", onKey);
     };
   }, [emblaApi, prev, next]);
 
+  /* autoplay: 8s, only in view, never for reduced motion, paused while
+     hovered, focused or dragged */
+  useEffect(() => {
+    if (!inView || reduced || !emblaApi) return;
+    const id = setInterval(() => {
+      if (!pausedRef.current && !document.hidden) emblaApi.scrollNext();
+    }, 8000);
+    return () => clearInterval(id);
+  }, [inView, reduced, emblaApi]);
+
+  const carving = inView && !reduced;
+  const progress = ((selected + 1) / TABLETS.length) * 100;
+
   return (
-    <section id="tablets" data-section="tablets" className="section-scope travertine-bg text-ink py-28 md:py-36 overflow-hidden">
+    <section
+      id="tablets"
+      data-section="tablets"
+      ref={sectionRef}
+      className="section-scope travertine-bg text-ink py-28 md:py-36 overflow-hidden"
+      onPointerEnter={() => {
+        pausedRef.current = true;
+      }}
+      onPointerLeave={() => {
+        pausedRef.current = false;
+      }}
+      onFocus={() => {
+        pausedRef.current = true;
+      }}
+      onBlur={() => {
+        pausedRef.current = false;
+      }}
+    >
       <div className="mx-auto max-w-5xl px-6">
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-terra-deep mb-4">
           {numeralFor("tablets")} — Tablets of the Customers
@@ -40,25 +215,26 @@ export default function Tablets() {
           Carved by the teams who run their quarter on Oraculum.
         </h2>
 
-        <div className="overflow-hidden" ref={emblaRef} tabIndex={0} aria-label="Customer testimonial carousel">
-          <div className="flex">
-            {TABLETS.map((t) => (
-              <figure
+        <div
+          className="overflow-hidden"
+          ref={emblaRef}
+          tabIndex={0}
+          aria-label="Customer testimonial carousel"
+        >
+          <div className="flex items-stretch">
+            {TABLETS.map((t, i) => (
+              <TabletSlide
                 key={t.name}
-                className="flex-[0_0_100%] md:flex-[0_0_60%] border-l-4 border-terra-deep/50 bg-sand/60 px-8 py-10 mr-8 rounded-sm"
-              >
-                <blockquote className="font-display text-xl md:text-2xl italic leading-snug text-ink">
-                  “{t.quote}”
-                </blockquote>
-                <figcaption className="mt-6 font-mono text-[11px] uppercase tracking-[0.2em] text-terra-deep">
-                  {t.name} · {t.role}
-                </figcaption>
-              </figure>
+                {...t}
+                index={i}
+                active={i === selected}
+                carving={carving}
+              />
             ))}
           </div>
         </div>
 
-        <div className="mt-8 flex items-center gap-4">
+        <div className="mt-8 flex flex-wrap items-center gap-4">
           <button
             onClick={prev}
             aria-label="Previous testimonial"
@@ -73,17 +249,33 @@ export default function Tablets() {
           >
             →
           </button>
+
+          {/* Roman counter + progress bar, as on the carved artifact */}
+          <p className="font-mono text-[11px] tracking-[0.3em] text-ink" aria-live="polite">
+            {ROMAN[selected]} / {ROMAN[TABLETS.length - 1]}
+          </p>
+          <div
+            aria-hidden="true"
+            className="h-0.5 flex-1 max-w-40 bg-terra-deep/20 overflow-hidden rounded-full"
+          >
+            <div
+              className="h-full bg-terra-deep transition-all duration-500 ease-[var(--ease-out-expo)]"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+
           <div className="flex gap-2" role="tablist" aria-label="Choose testimonial">
-            {TABLETS.map((_, i) => (
+            {TABLETS.map((t, i) => (
               <button
-                key={i}
+                key={t.name}
                 role="tab"
                 aria-selected={i === selected}
                 aria-label={`Testimonial ${i + 1}`}
                 onClick={() => emblaApi?.scrollTo(i)}
-                className={`h-2 rounded-full transition-all ${
-                  i === selected ? "w-8 bg-terra-deep" : "w-2 bg-terra-deep/30"
-                }`}
+                className={cn(
+                  "h-2 rounded-full transition-all",
+                  i === selected ? "w-8 bg-terra-deep" : "w-2 bg-terra-deep/30",
+                )}
               />
             ))}
           </div>

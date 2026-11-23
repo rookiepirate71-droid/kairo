@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "export:package": "rsync -a --delete --exclude kairo dist-pages/ dist-pages/kairo/",
     "lint": "next lint",
     "format": "prettier --write .",
     "test": "vitest run",

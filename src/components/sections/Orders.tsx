@@ -1,12 +1,13 @@
 "use client";
 
-import { Fragment, useId, useState } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
 import { PLANS, COMPARISON, numeralFor } from "@/lib/constants";
 import Accordion from "@/components/ui/Accordion";
 import TierCard from "@/components/orders/TierCard";
 import { TIERS } from "@/lib/tiers";
 import { useInView } from "@/hooks/useInView";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { papyrusTexture } from "@/lib/stoneTexture";
 import { cn } from "@/lib/utils";
 
 /* Engraved SPQR-style rule. */
@@ -66,14 +67,53 @@ function CellValue({ value }: { value: string }) {
   );
 }
 
-/* A roller rod: dark lacquered wood bar overhanging the sheet, with
-   turned end-knobs. Decorative. */
-function RollerRod() {
+/* Procedural papyrus underlay: the canvas texture (fibres, seams, stains,
+   burnt rim) stretched over the CSS parchment paint. Client-only paint,
+   so SSR and the first frame are unchanged. */
+function PapyrusLayer() {
+  const [tex, setTex] = useState("");
+  useEffect(() => {
+    setTex(papyrusTexture());
+  }, []);
   return (
-    <div aria-hidden="true" className="relative z-10 mx-6 h-6 xl:mx-10">
-      <span className="absolute inset-x-0 top-1/2 h-5 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised" />
-      <span className="absolute -left-2.5 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised" />
-      <span className="absolute -right-2.5 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised" />
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-50 mix-blend-multiply"
+      style={tex ? { backgroundImage: `url(${tex})` } : undefined}
+    />
+  );
+}
+
+/* A roller rod: dark lacquered wood bar overhanging the sheet, with
+   turned end-knobs. Decorative. While the sheet is still rolled the rod
+   is slightly fatter and lower; it slims as the sheet unrolls. */
+function RollerRod({ rolled }: { rolled: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        "relative z-10 mx-6 xl:mx-10 transition-all duration-[1400ms] ease-out motion-reduce:transition-none",
+        rolled ? "h-7 opacity-100" : "h-4 opacity-80",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised transition-all duration-[1400ms] ease-out motion-reduce:transition-none",
+          rolled ? "h-6" : "h-4",
+        )}
+      />
+      <span
+        className={cn(
+          "absolute -left-2.5 top-1/2 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised transition-all duration-[1400ms] ease-out motion-reduce:transition-none",
+          rolled ? "h-8 w-8" : "h-6 w-6",
+        )}
+      />
+      <span
+        className={cn(
+          "absolute -right-2.5 top-1/2 -translate-y-1/2 rounded-full border border-stone/30 bg-gradient-to-b from-charcoal via-ink to-charcoal shadow-raised transition-all duration-[1400ms] ease-out motion-reduce:transition-none",
+          rolled ? "h-8 w-8" : "h-6 w-6",
+        )}
+      />
     </div>
   );
 }
@@ -88,7 +128,7 @@ function ScrollSheet({ children }: { children: React.ReactNode }) {
   const reduced = useReducedMotion();
   const unrolled = inView || reduced;
   return (
-    <div ref={ref}>
+    <div ref={ref} data-unrolled={unrolled ? "true" : "false"}>
       <svg aria-hidden="true" width="0" height="0" className="absolute">
         <defs>
           <filter id="parchment-edge" x="-5%" y="-3%" width="110%" height="106%">
@@ -109,7 +149,7 @@ function ScrollSheet({ children }: { children: React.ReactNode }) {
           </filter>
         </defs>
       </svg>
-      <RollerRod />
+      <RollerRod rolled={unrolled} />
       <div
         className="relative transition-[clip-path] duration-[1400ms] ease-out motion-reduce:transition-none"
         style={{ clipPath: unrolled ? "inset(0 0 0% 0)" : "inset(0 0 99% 0)" }}
@@ -118,9 +158,10 @@ function ScrollSheet({ children }: { children: React.ReactNode }) {
           aria-hidden="true"
           className="parchment-bg parchment-edge shadow-raised absolute -inset-y-1 inset-x-0"
         />
+        <PapyrusLayer />
         <div className="relative">{children}</div>
       </div>
-      <RollerRod />
+      <RollerRod rolled={unrolled} />
     </div>
   );
 }
@@ -272,45 +313,51 @@ export default function Orders() {
                   </tr>
                 </thead>
                 <tbody>
-                  {GROUPS.map(([group, caps]) => (
-                    <Fragment key={group}>
-                      {/* group subheader row */}
-                      <tr>
-                        <th
-                          scope="colgroup"
-                          colSpan={4}
-                          className="pt-6 pb-2 px-8 text-left font-mono text-[10px] uppercase tracking-[0.3em] text-terra-deep"
-                        >
-                          {group}
-                        </th>
-                      </tr>
-                      {TABLE.filter((r) => caps.includes(r.capability)).map((row) => (
-                        <tr
-                          key={row.capability}
-                          className="group transition-colors hover:bg-oxidized/10"
-                        >
+                  {(() => {
+                    /* ink-in stagger: each body row starts writing as the
+                       unrolling edge reaches it (~120ms apart) */
+                    let ink = 0;
+                    return GROUPS.map(([group, caps]) => (
+                      <Fragment key={group}>
+                        {/* group subheader row */}
+                        <tr>
                           <th
-                            scope="row"
-                            className="text-left py-3.5 px-8 font-sans text-ink group-hover:text-terra-deep border-b border-ink/20 transition-colors"
+                            scope="colgroup"
+                            colSpan={4}
+                            className="pt-6 pb-2 px-8 text-left font-mono text-[10px] uppercase tracking-[0.3em] text-terra-deep"
                           >
-                            {row.capability}
+                            {group}
                           </th>
-                          {(["citizen", "senator", "emperor"] as const).map((tier) => (
-                            <td
-                              key={tier}
-                              className={cn(
-                                "py-3.5 px-5 text-center text-ink border-b border-ink/20",
-                                tier === "senator" &&
-                                  "bg-oxidized/10 border-x border-terra-deep/40 group-hover:bg-oxidized/15 transition-colors"
-                              )}
-                            >
-                              <CellValue value={row[tier]} />
-                            </td>
-                          ))}
                         </tr>
-                      ))}
-                    </Fragment>
-                  ))}
+                        {TABLE.filter((r) => caps.includes(r.capability)).map((row) => (
+                          <tr
+                            key={row.capability}
+                            className="ink-row group transition-colors hover:bg-oxidized/10"
+                            style={{ "--ink-i": `${(ink++ * 120).toString()}ms` } as React.CSSProperties}
+                          >
+                            <th
+                              scope="row"
+                              className="text-left py-3.5 px-8 font-sans text-ink group-hover:text-terra-deep border-b border-ink/20 transition-colors"
+                            >
+                              {row.capability}
+                            </th>
+                            {(["citizen", "senator", "emperor"] as const).map((tier) => (
+                              <td
+                                key={tier}
+                                className={cn(
+                                  "py-3.5 px-5 text-center text-ink border-b border-ink/20",
+                                  tier === "senator" &&
+                                    "bg-oxidized/10 border-x border-terra-deep/40 group-hover:bg-oxidized/15 transition-colors"
+                                )}
+                              >
+                                <CellValue value={row[tier]} />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ));
+                  })()}
                 </tbody>
               </table>
           </ScrollSheet>
