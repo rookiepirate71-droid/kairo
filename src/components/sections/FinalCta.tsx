@@ -1,16 +1,25 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import FluidOrb from "@/components/ui/fluid-orb";
 import { numeralFor } from "@/lib/constants";
 
 /**
  * Final call to action with a magnetic gold button — the button drifts a
- * few pixels toward the cursor while it is near.
+ * few pixels toward the cursor while it is near. The transform is applied
+ * imperatively (rAF-throttled) so mousemove never re-renders the section.
  */
 export default function FinalCta() {
   const btnRef = useRef<HTMLAnchorElement>(null);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const rafRef = useRef(0);
+
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+
+  const setBtnTransform = (x: number, y: number) => {
+    const el = btnRef.current;
+    if (!el) return;
+    el.style.transform = `translate(${x}px, ${y}px)`;
+  };
 
   const onMove = (e: React.MouseEvent) => {
     const el = btnRef.current;
@@ -18,7 +27,13 @@ export default function FinalCta() {
     const rect = el.getBoundingClientRect();
     const dx = e.clientX - (rect.left + rect.width / 2);
     const dy = e.clientY - (rect.top + rect.height / 2);
-    setOffset({ x: dx * 0.15, y: dy * 0.15 });
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => setBtnTransform(dx * 0.15, dy * 0.15));
+  };
+
+  const onLeave = () => {
+    cancelAnimationFrame(rafRef.current);
+    setBtnTransform(0, 0);
   };
 
   return (
@@ -46,12 +61,11 @@ export default function FinalCta() {
           One working session with our team. Your data, live in Oraculum,
           within the week.
         </p>
-        <div className="mt-12" onMouseMove={onMove} onMouseLeave={() => setOffset({ x: 0, y: 0 })}>
+        <div className="mt-12" onMouseMove={onMove} onMouseLeave={onLeave}>
           <a
             ref={btnRef}
             href="#senate"
             className="inline-flex min-h-[56px] items-center justify-center px-12 bg-gold text-ink font-sans text-base uppercase tracking-wide rounded-sm shadow-raised transition-transform duration-150 ease-out hover:bg-oxidized"
-            style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
           >
             Request Access
           </a>

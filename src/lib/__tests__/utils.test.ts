@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { BAYER_4X4, bayerThreshold } from "../dither";
 import { ASCII_RAMP_DARK, toAscii } from "../ascii";
@@ -179,5 +181,80 @@ describe("content invariants", () => {
     expect(all.toLowerCase()).not.toContain("lorem");
     expect(all.toLowerCase()).not.toContain("ipsum");
     expect(all.toLowerCase()).not.toContain("welcome to our");
+  });
+});
+
+// Regression: useRevealOrigin once registered its handlers on `window`, where
+// `e.currentTarget` is the Window, so `target.getBoundingClientRect()` threw a
+// TypeError on every pointermove anywhere on the page. Listeners must attach
+// to the card element from the ref instead.
+describe("useRevealOrigin listener registration", () => {
+  const source = readFileSync(
+    path.resolve(__dirname, "../../hooks/useRevealOrigin.ts"),
+    "utf8",
+  );
+
+  it("attaches pointer/focus listeners to the card element, never window", () => {
+    expect(source).not.toMatch(/window\.addEventListener\(/);
+    expect(source).not.toMatch(/window\.removeEventListener\(/);
+    expect(source).toMatch(/card\.addEventListener\("pointermove"/);
+    expect(source).toMatch(/card\.addEventListener\("focusin"/);
+  });
+
+  it("guards against a missing card ref before wiring listeners", () => {
+    expect(source).toMatch(/if \(!card\) return/);
+  });
+});
+
+// Regression: Tesserae registered its arrow-key handler on `document`, so
+// ArrowLeft/ArrowRight scrolled the carousel page-wide — even while typing in
+// the Senate email input — and any second document-level handler would drive
+// it twice. Arrow keys must work only when the carousel viewport has focus.
+describe("Tesserae key listener registration", () => {
+  const source = readFileSync(
+    path.resolve(__dirname, "../../components/sections/Tesserae.tsx"),
+    "utf8",
+  );
+
+  it("attaches keydown to the carousel viewport, never document", () => {
+    expect(source).not.toMatch(/document\.addEventListener\("keydown"/);
+    expect(source).not.toMatch(/document\.removeEventListener\("keydown"/);
+    expect(source).toMatch(/node\.addEventListener\("keydown"/);
+    expect(source).toMatch(/node\.removeEventListener\("keydown"/);
+  });
+
+  it("guards against a missing viewport node before wiring listeners", () => {
+    expect(source).toMatch(/if \(!node\) return/);
+  });
+
+  it("keeps the embla viewport ref wired to the same element", () => {
+    expect(source).toMatch(/emblaRef\(node\)/);
+  });
+});
+
+// Regression: FinalCta held the magnetic button's offset in React state and
+// called setOffset on every mousemove, re-rendering the whole section up to
+// ~60x/s. The transform must be applied imperatively to the button ref and
+// rAF-throttled — never through component state.
+describe("FinalCta magnetic button registration", () => {
+  const source = readFileSync(
+    path.resolve(__dirname, "../../components/sections/FinalCta.tsx"),
+    "utf8",
+  );
+
+  it("drives the transform via the button ref, never React state", () => {
+    expect(source).not.toMatch(/useState/);
+    expect(source).not.toMatch(/setOffset/);
+    expect(source).toMatch(/\.style\.transform = `translate\(/);
+    expect(source).toMatch(/const el = btnRef\.current/);
+  });
+
+  it("throttles mousemove work to requestAnimationFrame", () => {
+    expect(source).toMatch(/requestAnimationFrame\(/);
+    expect(source).toMatch(/cancelAnimationFrame\(rafRef\.current\)/);
+  });
+
+  it("cancels the pending frame on unmount", () => {
+    expect(source).toMatch(/useEffect\(\(\) => \(\) => cancelAnimationFrame\(rafRef\.current\), \[\]\)/);
   });
 });
