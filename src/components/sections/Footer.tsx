@@ -72,7 +72,7 @@ export default function Footer() {
           muted
           loop
           playsInline
-          preload="auto"
+          preload="metadata"
           disablePictureInPicture
           className="h-full w-full object-cover object-center"
         />
