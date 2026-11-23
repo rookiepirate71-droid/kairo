@@ -34,7 +34,7 @@ const SOCIALS = [
   {
     label: "LinkedIn",
     icon: "/icons/simple-icons-linkedin-ede6d6.svg",
-    href: "https://linkedin.com",
+    href: "https://www.linkedin.com/in/pattaswamy-vishwak-yashasree-264261293/",
   },
   {
     label: "YouTube",
