@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { asset } from "@/lib/asset";
 import Link from "next/link";
 
@@ -62,15 +61,20 @@ export default function Footer() {
         }}
       />
 
-      {/* full-bleed artwork, anchored so the whole composition reads */}
+      {/* full-bleed artwork, anchored so the whole composition reads.
+          Owner-provided moonlit clip loops muted; the previous still
+          stays underneath as the poster while it loads. */}
       <div className="absolute inset-0" aria-hidden="true">
-        <Image
-          src={asset("/generated/footer-cliff-bright.jpg")}
-          alt=""
-          fill
-          sizes="100vw"
-          quality={85}
-          className="object-cover object-center"
+        <video
+          src={asset("/generated/devault-ascii.mp4")}
+          poster={asset("/generated/footer-cliff-bright.jpg")}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          disablePictureInPicture
+          className="h-full w-full object-cover object-center"
         />
         {/* scrim: left third over open water/sky, plus mid band so the
             School/Senate columns clear the bright temple behind them */}
