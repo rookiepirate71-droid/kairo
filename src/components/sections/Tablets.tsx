@@ -8,9 +8,10 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { stoneTexture } from "@/lib/stoneTexture";
 import { cn } from "@/lib/utils";
 
-/* tabula ansata: the notched wing shape of a carved Roman tablet */
+/* tabula ansata: slab widens to pointed wings at mid-height, like the
+   carved artifact */
 const TABULA_CLIP =
-  "polygon(0% 14%, 5% 8%, 5% 0%, 95% 0%, 95% 8%, 100% 14%, 100% 86%, 95% 92%, 95% 100%, 5% 100%, 5% 92%, 0% 86%)";
+  "polygon(7% 0%, 93% 0%, 100% 50%, 93% 100%, 7% 100%, 0% 50%)";
 
 const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
@@ -108,28 +109,33 @@ function TabletSlide({
   return (
     <figure
       className={cn(
-        "relative flex-[0_0_100%] md:flex-[0_0_62%] pl-3 pr-3 transition-all duration-700 ease-[var(--ease-out-expo)]",
-        active ? "scale-100 opacity-100" : "scale-[0.94] opacity-45",
+        "relative flex-[0_0_100%] md:flex-[0_0_72%] pl-2 pr-2 transition-all duration-700 ease-[var(--ease-out-expo)]",
+        active ? "scale-100 opacity-100" : "scale-[0.95] opacity-50",
       )}
       style={{ clipPath: TABULA_CLIP }}
       aria-hidden={!active}
     >
       <div
-        className="relative border-4 border-double border-terra-deep/60 shadow-raised px-7 py-12 md:px-10 md:py-14"
+        className="relative flex min-h-[300px] flex-col justify-between px-10 py-9 md:min-h-[340px] md:px-12"
         style={texture ? { backgroundImage: `url(${texture})`, backgroundSize: "cover" } : undefined}
       >
         <Dust active={active} />
+        {/* inset double-rule frame, as on the carved artifact */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-5 inset-y-4 border-double border-2 border-terra-deep/50"
+        />
         <blockquote
           aria-label={quote}
           className={cn(
-            "font-display text-xl italic leading-snug md:text-2xl",
+            "relative font-display text-xl italic leading-relaxed md:text-2xl",
             carving ? "carving" : "",
-            active ? "text-terra-deep" : "text-ink/80",
+            active ? "text-terra-deep" : "text-stone/70",
           )}
         >
           “<CarvedText text={quote} />”
         </blockquote>
-        <figcaption className="mt-6 font-mono text-[11px] uppercase tracking-[0.2em] text-ink">
+        <figcaption className="relative mt-8 font-mono text-[11px] uppercase tracking-[0.25em] text-terra-deep/90">
           {name} · {role}
         </figcaption>
       </div>
@@ -211,7 +217,7 @@ export default function Tablets() {
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-terra-deep mb-4">
           {numeralFor("tablets")} — Tablets of the Customers
         </p>
-        <h2 className="font-display text-[clamp(2rem,5vw,3.5rem)] leading-tight mb-14 max-w-xl">
+        <h2 className="font-display text-[clamp(2rem,5vw,3.5rem)] leading-tight mb-14 max-w-xl text-sand drop-shadow-[0_1px_0_rgba(141,111,60,0.25)]">
           Carved by the teams who run their quarter on Oraculum.
         </h2>
 
@@ -234,29 +240,29 @@ export default function Tablets() {
           </div>
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-4">
+        <div className="mt-10 flex flex-wrap items-center gap-4">
           <button
             onClick={prev}
             aria-label="Previous testimonial"
-            className="min-h-[44px] min-w-[44px] border border-terra-deep/60 text-terra-deep rounded-sm hover:bg-terra-deep/10 transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-terra-deep/50 text-terra-deep transition-colors hover:bg-terra-deep/10"
           >
             ←
           </button>
           <button
             onClick={next}
             aria-label="Next testimonial"
-            className="min-h-[44px] min-w-[44px] border border-terra-deep/60 text-terra-deep rounded-sm hover:bg-terra-deep/10 transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-terra-deep/50 text-terra-deep transition-colors hover:bg-terra-deep/10"
           >
             →
           </button>
 
-          {/* Roman counter + progress bar, as on the carved artifact */}
+          {/* Roman counter + hairline progress bar, as on the artifact */}
           <p className="font-mono text-[11px] tracking-[0.3em] text-ink" aria-live="polite">
             {ROMAN[selected]} / {ROMAN[TABLETS.length - 1]}
           </p>
           <div
             aria-hidden="true"
-            className="h-0.5 flex-1 max-w-40 bg-terra-deep/20 overflow-hidden rounded-full"
+            className="h-px flex-1 max-w-44 bg-terra-deep/25 overflow-hidden"
           >
             <div
               className="h-full bg-terra-deep transition-all duration-500 ease-[var(--ease-out-expo)]"
@@ -264,7 +270,9 @@ export default function Tablets() {
             />
           </div>
 
-          <div className="flex gap-2" role="tablist" aria-label="Choose testimonial">
+          {/* screen-reader-only slide navigation (visual arrows + keys
+             cover pointer users, matching the artifact's sparse chrome) */}
+          <div className="sr-only" role="tablist" aria-label="Choose testimonial">
             {TABLETS.map((t, i) => (
               <button
                 key={t.name}
@@ -272,10 +280,6 @@ export default function Tablets() {
                 aria-selected={i === selected}
                 aria-label={`Testimonial ${i + 1}`}
                 onClick={() => emblaApi?.scrollTo(i)}
-                className={cn(
-                  "h-2 rounded-full transition-all",
-                  i === selected ? "w-8 bg-terra-deep" : "w-2 bg-terra-deep/30",
-                )}
               />
             ))}
           </div>

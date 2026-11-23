@@ -45,8 +45,9 @@ function sampleNoise(
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
 
-/* Sandstone slab: warm travertine ground with strata and dark umber
-   veining from a noisy sine field. One texture per tablet slide. */
+/* Aged cream parchment-stone: pale ivory ground with soft mottling and
+   sparse dark flyspecks (age spots), matching the carved-tabulae
+   artifact. One texture per tablet slide. */
 export function stoneTexture(seed: number, w = 720, h = 360): string {
   const canvas = document.createElement("canvas");
   canvas.width = w;
@@ -54,30 +55,21 @@ export function stoneTexture(seed: number, w = 720, h = 360): string {
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
   const rand = mulberry32(seed * 7919 + 17);
-  const cloud = valueNoiseField(rand, 7);
-  const vein = valueNoiseField(rand, 9);
+  const cloud = valueNoiseField(rand, 6);
+  const blotch = valueNoiseField(rand, 4);
 
   const img = ctx.createImageData(w, h);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const u = x / w;
       const v = y / h;
-      const n = sampleNoise(cloud, u, v, 7);
-      // strata: horizontal bands perturbed by cloud noise
-      const strata = Math.sin((v * 14 + n * 2.4) * Math.PI) * 0.5 + 0.5;
-      // veins: ridges of a noisy sine field
-      const ridge = Math.abs(
-        Math.sin((u * 5.5 + sampleNoise(vein, u, v, 9) * 7.2) * Math.PI * 2),
-      );
-      const veinDark = Math.pow(1 - ridge, 14);
-      // base travertine tones (r, g, b)
-      let r = 214 - strata * 22 - n * 14;
-      let g = 198 - strata * 20 - n * 12;
-      let b = 161 - strata * 18 - n * 10;
-      const d = veinDark * 0.55;
-      r = r * (1 - d) + 74 * d;
-      g = g * (1 - d) + 52 * d;
-      b = b * (1 - d) + 38 * d;
+      const n = sampleNoise(cloud, u, v, 6);
+      const m = sampleNoise(blotch, u, v, 4);
+      // pale ivory ground with gentle mottling (very low contrast)
+      const shade = (n - 0.5) * 18 + (m - 0.5) * 26;
+      const r = 233 + shade;
+      const g = 226 + shade;
+      const b = 205 + shade * 0.9;
       const i = (y * w + x) * 4;
       img.data[i] = r;
       img.data[i + 1] = g;
@@ -86,6 +78,28 @@ export function stoneTexture(seed: number, w = 720, h = 360): string {
     }
   }
   ctx.putImageData(img, 0, 0);
+
+  // flyspecks: sparse small dark age spots, some clustered
+  for (let i = 0; i < 90; i++) {
+    const x = rand() * w;
+    const y = rand() * h;
+    const r = 0.6 + rand() * 2.2;
+    ctx.fillStyle = `rgba(72, 52, 30, ${0.12 + rand() * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // a few larger soft stains
+  for (let i = 0; i < 6; i++) {
+    const x = rand() * w;
+    const y = rand() * h;
+    const r = 14 + rand() * 42;
+    const g2 = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g2.addColorStop(0, `rgba(120, 95, 55, ${0.05 + rand() * 0.07})`);
+    g2.addColorStop(1, "rgba(120, 95, 55, 0)");
+    ctx.fillStyle = g2;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
   return canvas.toDataURL("image/png");
 }
 
